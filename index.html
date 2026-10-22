@@ -108,6 +108,26 @@
   .fsx-info{font-size:12.5px;color:#bbb;margin-left:auto}
   .fsx-canvas{flex:1;overflow:hidden;position:relative;cursor:grab;touch-action:none}
   .fsx-canvas img{position:absolute;top:0;left:0;transform-origin:0 0;max-width:none;user-select:none;-webkit-user-drag:none}
+  /* 管理页 */
+  .mrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+  .mrow input[type=text],.mrow input[type=password],.mrow input[type=search],.mrow input[type=file]{
+    font-family:inherit;font-size:13.5px;padding:7px 9px;border-radius:8px;border:1px solid var(--line);
+    background:var(--paper);color:var(--ink)}
+  .btn{font-family:inherit;font-size:13.5px;border:1px solid var(--accent);background:var(--accent);color:#fff;
+    padding:7px 13px;border-radius:8px;cursor:pointer}
+  .btn.g{background:transparent;color:var(--accent)}
+  .btn.danger{border-color:var(--accent2);background:var(--accent2);color:#fff}
+  .mlog{background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:12.5px;
+    font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-all;max-height:220px;overflow:auto;margin:8px 0 0}
+  .mprog{height:20px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--chip);margin-top:8px}
+  .mprog>div{height:100%;background:var(--accent);color:#fff;font-size:11.5px;line-height:20px;padding-left:6px;width:0;transition:width .2s}
+  .mdel{max-height:420px;overflow:auto;margin-top:8px}
+  .mitem{display:flex;gap:9px;align-items:center;padding:6px 4px;border-bottom:1px solid var(--line);font-size:13.5px}
+  .mitem.dim{opacity:.5}
+  .mi-no{flex:0 0 46px;color:var(--soft);font-size:12px;font-variant-numeric:tabular-nums}
+  .mi-t{flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mitem .muted{flex:0 0 auto}
+  .mitem button{flex:0 0 auto;font-size:12.5px;padding:4px 9px}
   .kbd{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--chip);padding:1px 5px;border-radius:4px;
     overflow-wrap:anywhere;word-break:break-all}
   footer{max-width:1080px;margin:0 auto;padding:0 18px 40px;color:var(--soft);font-size:12.5px}
@@ -125,6 +145,7 @@
   <button data-v="lib" class="on">谱库（真谱）</button>
   <button data-v="how">这谱怎么读</button>
   <button data-v="src">来源与局限</button>
+  <button data-v="mgr">管理（上传/删除）</button>
 </nav>
 
 <main>
@@ -196,6 +217,46 @@
   </ul>
   <h3>版权</h3>
   <p class="muted">谱图版权归打谱者与写轮指本人，水印与"上传于中国曲谱网"字样都在图上，我未做任何抹除。本页面与这些图片仅供你个人练琴，别二次发布、别打包分享。</p>
+</section>
+<section id="v-mgr">
+  <h2>管理曲库：上传 PDF 加谱 / 删除谱</h2>
+  <p class="muted">这个页面直接改 GitHub 仓库，提交后 Pages 约一分钟内自动重新部署。仓库是公开的，所以<b>令牌不会写进任何页面代码</b>：只在你自己这台设备的浏览器里输入一次，存在 localStorage，可以随时清除。换设备或清缓存后要重新输入。</p>
+
+  <div class="card">
+    <b>1｜连接仓库</b>
+    <p class="muted" style="margin:2px 0 8px">需要一把只有这个仓库 Contents 写权限的 fine-grained 令牌（Settings → Developer settings → Fine-grained tokens → 只勾该仓库、Contents: Read and write）。</p>
+    <div class="mrow">
+      <input type="password" id="mTok" placeholder="粘贴 GitHub 令牌（ghp_…）" style="flex:1;min-width:220px">
+      <button id="mTokSave" class="btn">存到本机</button>
+      <button id="mTokClear" class="btn g">清除</button>
+      <span id="mWho" class="muted">未连接</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <b>2｜添加曲谱</b>
+    <div class="mrow" style="margin-top:8px">
+      <input type="file" id="mFile" accept=".pdf,image/*" multiple>
+      <input type="text" id="mTitle" placeholder="曲名（留空则用文件名）" style="flex:1;min-width:160px">
+      <input type="text" id="mSinger" placeholder="演唱/来源（可空）" style="width:150px">
+      <button id="mAdd" class="btn">转换并上传</button>
+    </div>
+    <p class="muted">PDF 会在你浏览器里用 pdf.js 逐页渲染成 1650px 的 WebP 再上传；一次选多张图片会被当成同一首的连续几页。</p>
+    <div id="mProg" class="mprog" hidden><div></div></div>
+    <pre id="mLog" class="mlog"></pre>
+  </div>
+
+  <div class="card">
+    <b>3｜删除曲谱</b>
+    <p class="muted">你上传的谱是<b>真删除</b>（连图片一起从仓库删掉）。抓来的 424 首默认只做<b>隐藏</b>——站点不再显示它，但仓库里的文件还在，随时可以取消隐藏，避免误删不可逆。</p>
+    <div class="mrow">
+      <input type="search" id="mDelq" placeholder="搜要删除/隐藏的曲名…" style="flex:1;min-width:200px">
+      <label class="muted"><input type="checkbox" id="mShowHidden"> 显示已隐藏（可取消）</label>
+    </div>
+    <div id="mDelList" class="mdel"></div>
+  </div>
+
+  <p class="muted">提交成功后页面会提示；等一分钟左右刷新，新谱就会出现在「谱库」列表里（编号从 9001 起）。</p>
 </section>
 </main>
 
@@ -402,6 +463,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   document.getElementById('vOpen').onclick=function(){ window.open(actPages(LIB[sel])[page]); };
   document.getElementById('libq').addEventListener('input',paintList);
   paintList(); paintOne();
+  window.__jh={ set:function(a){ LIB=a.slice(); sel=0; page=0; paintList(); paintOne(); }, get:function(){ return LIB; } };
 
   /* ===== 全屏放大查看器 ===== */
   (function(){
@@ -469,8 +531,261 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   }
   document.querySelectorAll('nav button').forEach(function(b){ b.onclick=function(){ go(b.dataset.v); location.hash=b.dataset.v; }; });
   var h=(location.hash||'').replace('#','');
-  if(['lib','how','play','cat','src'].indexOf(h)>=0) go(h);
+  if(['lib','how','play','cat','src','mgr'].indexOf(h)>=0) go(h);
 })();
+</script>
+<!-- jianhepu 管理脚本 -->
+<script type="module">
+  /* pdf.js：上传 PDF 时在浏览器里逐页渲染成 WebP */
+  try {
+    const m = await import('vendor/pdf.min.mjs');
+    m.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.mjs';
+    window.__pdfjs = m;
+  } catch (e) { console.warn('pdf.js 未加载：', e && e.message); }
+</script>
+<script>
+/* ===== 管理：上传 PDF 加谱 / 删除谱（直写 GitHub 仓库） ===== */
+(function(){
+  var REPO_OWNER='beta7716', REPO='jianhepu-site';
+  var APIU='https://api.github.com/repos/'+REPO_OWNER+'/'+REPO+'/contents/';
+  var TOKKEY='jh_token_'+REPO;
+  var $=function(s){ return document.querySelector(s); };
+  var enc=new TextEncoder();
+  function esc(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+
+  function tok(){ try{ return localStorage.getItem(TOKKEY)||''; }catch(e){ return ''; } }
+  function log(t){ var el=$('#mLog'); if(!el) return; el.textContent += (el.textContent?'\n':'') + t; el.scrollTop=el.scrollHeight; }
+  function prog(done,total,label){ var w=$('#mProg'); if(!w) return; if(total<=0){w.hidden=true;return;}
+    w.hidden=false; var b=w.firstElementChild; b.style.width=Math.round(done/total*100)+'%';
+    b.textContent=label? (done+'/'+total+'  '+label) : (done+'/'+total); }
+  function b64(bytes){ var s='',u=new Uint8Array(bytes),CH=0x8000;
+    for(var i=0;i<u.length;i+=CH) s+=String.fromCharCode.apply(null,u.subarray(i,i+CH)); return btoa(s); }
+  function unb64(str){ var bin=atob(str.replace(/\s+/g,'')),u=new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
+  function hdr(extra){ var h={'Accept':'application/vnd.github+json','Content-Type':'application/json'};
+    var t=tok(); if(t) h.Authorization='Bearer '+t;
+    return Object.assign(h, extra||{}); }
+  function jfetch(url,opt){ return fetch(url,opt).then(function(r){ return r.text().then(function(x){
+    var j=null; try{ j=JSON.parse(x); }catch(e){} return {ok:r.ok,status:r.status,json:j,text:x}; }); }); }
+  function api(path,opt){ return jfetch(APIU+encodeURIComponent(path).replace(/%2F/g,'/'), Object.assign({headers:hdr()},opt||{})); }
+
+  function readJson(path){
+    return api(path).then(function(res){
+      if(!res.ok) return null;
+      try{ return {sha:res.json.sha, data:JSON.parse(new TextDecoder().decode(unb64(res.json.content)))}; }
+      catch(e){ log('  解析 '+path+' 失败：'+e.message); return null; }
+    });
+  }
+  function writeJson(path,obj,msg,sha){
+    var body={message:msg,content:b64(enc.encode(JSON.stringify(obj,null,1)))};
+    if(sha) body.sha=sha;
+    return api(path,{method:'PUT',body:JSON.stringify(body)});
+  }
+  function delFile(path,sha,msg){ return api(path,{method:'DELETE',body:JSON.stringify({message:msg,sha:sha})}); }
+
+  /* ---- 动态数据：用户加的谱 + 被隐藏的抓来曲目 ---- */
+  var USER=[], HIDDEN=[], baseLib=[];
+  function publicJson(path){ return fetch('site-data/'+path+'?ts='+Date.now(),{cache:'no-store'})
+    .then(function(r){ return r.ok? r.json():null; }).catch(function(){ return null; }); }
+  function rebuild(){
+    var list=baseLib.filter(function(x){ return HIDDEN.indexOf(x.no)<0; });
+    USER.forEach(function(u){
+      list.push({no:u.no, id:'我加的', t:u.title, s:u.singer||'—', ly:'—', mu:'—',
+                 pages:u.pages, labels:u.pages.map(function(p,i){ return '第 '+(i+1)+' 页'; }), src:'我上传的'});
+    });
+    list.sort(function(a,b){ return a.no-b.no; });
+    if(window.__jh) window.__jh.set(list);
+  }
+  function hydrate(){
+    return Promise.all([publicJson('user.json'), publicJson('hidden.json')]).then(function(rs){
+      USER = rs[0] || []; HIDDEN = rs[1] || []; rebuild(); renderDel();
+      log('已载入线上曲库状态：我加的 '+USER.length+' 首，隐藏 '+HIDDEN.length+' 首');
+    }).catch(function(e){ log('读取 site-data 失败（本地打开网页时正常，请用线上地址）：'+e.message); });
+  }
+
+  /* ---- 令牌 ---- */
+  function whoami(){
+    if(!tok()){ $('#mWho').textContent='未连接'; return; }
+    jfetch('https://api.github.com/user',{headers:hdr()}).then(function(res){
+      $('#mWho').textContent = res.ok ? ('已连接：'+res.json.login) : ('令牌无效（'+res.status+'）');
+      if(res.ok) checkWritable();
+    });
+  }
+  function checkWritable(){
+    jfetch('https://api.github.com/repos/'+REPO_OWNER+'/'+REPO+'/collaborator_permissions',
+           {headers:hdr()}).then(function(res){
+      if(!res.ok){ $('#mWho').textContent += ' · 权限未知'; return; }
+      var p=res.json.permission || res.json.role_name;
+      $('#mWho').textContent += ' · 仓库权限：'+(p||'未知');
+    });
+  }
+
+  /* ---- 上传 ---- */
+  function nextUserNo(){ var m=9000; USER.forEach(function(u){ m=Math.max(m,u.no); }); return m+1; }
+
+  function renderPdfToWebps(file){
+    if(!window.__pdfjs) return Promise.reject(new Error('pdf.js 未加载，请用线上地址打开'));
+    return file.arrayBuffer().then(function(buf){
+      return window.__pdfjs.getDocument({data:buf}).promise;
+    }).then(function(doc){
+      var out=[], chain=Promise.resolve();
+      for(var i=1;i<=doc.numPages;i++){(function(n){
+        chain=chain.then(function(){
+          prog(n-1, doc.numPages, '渲染第 '+(n-1)+'/'+doc.numPages+' 页');
+          return doc.getPage(n).then(function(pg){
+            var vp0=pg.getViewport({scale:1});
+            var scale=1650/Math.max(vp0.width,vp0.height);
+            var vp=pg.getViewport({scale:scale});
+            var cv=document.createElement('canvas'); cv.width=Math.round(vp.width); cv.height=Math.round(vp.height);
+            var cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,cv.width,cv.height);
+            return pg.render({canvasContext:cx,viewport:vp}).promise.then(function(){
+              return new Promise(function(res,rej){
+                cv.toBlob(function(b){ if(!b) return rej(new Error('WebP 编码失败'));
+                  b.arrayBuffer().then(function(ab){ out.push(new Uint8Array(ab)); res(); }); }, 'image/webp', 0.82);
+              });
+            });
+          });
+        });
+      })(i);}
+      return chain.then(function(){ return out; });
+    });
+  }
+
+  function imageToWebp(file){
+    return new Promise(function(res,rej){
+      var url=URL.createObjectURL(file), im=new Image();
+      im.onload=function(){
+        var scale=Math.min(1, 1650/Math.max(im.naturalWidth,im.naturalHeight));
+        var cv=document.createElement('canvas'); cv.width=Math.round(im.naturalWidth*scale); cv.height=Math.round(im.naturalHeight*scale);
+        var cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,cv.width,cv.height);
+        cx.drawImage(im,0,0,cv.width,cv.height); URL.revokeObjectURL(url);
+        cv.toBlob(function(b){ if(!b) return rej(new Error('编码失败'));
+          b.arrayBuffer().then(function(ab){ res(new Uint8Array(ab)); }); },'image/webp',0.82);
+      };
+      im.onerror=function(){ URL.revokeObjectURL(url); rej(new Error('图片读不了：'+file.name)); };
+      im.src=url;
+    });
+  }
+
+  function doAdd(){
+    var files=Array.prototype.slice.call($('#mFile').files||[]);
+    if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
+    if(!files.length) return log('✗ 先选 PDF 或图片');
+    var first=files[0];
+    var title=($('#mTitle').value||'').trim() || first.name.replace(/\.[^.]+$/,'');
+    var singer=($('#mSinger').value||'').trim() || '本地上传';
+    var isPdf = /\.pdf$/i.test(first.name) || first.type==='application/pdf';
+    var no=nextUserNo();
+    log('→ 开始：《'+title+'》 编号 '+no+'（'+(isPdf?'PDF '+files[0].name:'图片 '+files.length+' 张')+'）');
+
+    var prep = isPdf ? renderPdfToWebps(first) : Promise.all(files.map(imageToWebp));
+    prep.then(function(pages){
+      if(!pages.length) throw new Error('没渲染出任何页');
+      log('  渲染完成，共 '+pages.length+' 页，开始上传');
+      var chain=Promise.resolve(), paths=[];
+      pages.forEach(function(bytes,i){
+        var path='songs-user/'+no+'/'+(i+1)+'.webp';
+        chain=chain.then(function(){
+          prog(i, pages.length, '上传第 '+(i+1)+'/'+pages.length+' 页');
+          return api(path,{method:'PUT',body:JSON.stringify({message:'加谱 '+title+' 第'+(i+1)+'页',content:b64(bytes)})})
+            .then(function(res){ if(!res.ok && res.status!==422) throw new Error('上传失败 '+res.status+' '+(res.json&&res.json.message));
+              paths.push('songs-user/'+no+'/'+(i+1)+'.webp'); });
+        });
+      });
+      return chain.then(function(){ return {paths:paths,count:pages.length}; });
+    }).then(function(r){
+      return readJson('site-data/user.json').then(function(cur){
+        var list=(cur&&cur.data)||[];
+        list.push({no:no,title:title,singer:singer,pages:r.paths,added:new Date().toISOString().slice(0,10)});
+        return writeJson('site-data/user.json', list, '加谱：'+title+'（'+r.count+' 页）', cur&&cur.sha)
+          .then(function(res){ if(!res.ok) throw new Error('写 user.json 失败 '+res.status+' '+(res.json&&res.json.message));
+            USER=list; rebuild(); renderDel(); prog(0,0);
+            log('✓ 已提交：《'+title+'》 '+r.count+' 页。约一分钟后刷新，就能在谱库里看到。'); });
+      });
+    }).catch(function(e){ prog(0,0); log('✗ 失败：'+e.message); });
+  }
+
+  /* ---- 删除 / 隐藏 ---- */
+  function renderDel(){
+    var box=$('#mDelList'); if(!box) return;
+    var q=($('#mDelq').value||'').trim().toLowerCase();
+    var showH=$('#mShowHidden').checked;
+    var rows='';
+    USER.forEach(function(u){
+      if(q && u.title.toLowerCase().indexOf(q)<0) return;
+      rows+='<div class="mitem"><span class="mi-no">'+u.no+'</span><span class="mi-t">'+esc(u.title)+'</span>'
+        +'<span class="muted">'+u.pages.length+' 页 · 我上传的</span>'
+        +'<button class="btn danger" data-del="'+u.no+'">删除（含图片）</button></div>';
+    });
+    baseLib.forEach(function(x){
+      var hid=HIDDEN.indexOf(x.no)>=0;
+      if(hid && !showH) return;
+      if(q && x.t.toLowerCase().indexOf(q)<0) return;
+      rows+='<div class="mitem'+(hid?' dim':'')+'"><span class="mi-no">'+x.no+'</span><span class="mi-t">'+esc(x.t)+'</span>'
+        +'<span class="muted">'+(x.s||'')+' · 抓来的</span>'
+        +'<button class="btn '+(hid?'g':'')+'" data-hide="'+x.no+'" data-on="'+(hid?0:1)+'">'+(hid?'取消隐藏':'隐藏')+'</button></div>';
+    });
+    box.innerHTML = rows || '<p class="muted">没有匹配的曲目。</p>';
+  }
+
+  function doDelete(no){
+    var u=USER.filter(function(x){ return x.no===no; })[0]; if(!u) return;
+    if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
+    if(!confirm('确定删除《'+u.title+'》及其 '+u.pages.length+' 张图片？')) return;
+    log('→ 删除《'+u.title+'》');
+    var chain=Promise.resolve();
+    u.pages.forEach(function(p,i){
+      chain=chain.then(function(){
+        return api(p).then(function(res){ if(!res.ok) return null;
+          prog(i,u.pages.length,'删图 '+(i+1)); return delFile(p,res.json.sha,'删谱图片 '+u.title); });
+      });
+    });
+    chain.then(function(){
+      var list=USER.filter(function(x){ return x.no!==no; });
+      return readJson('site-data/user.json').then(function(cur){
+        return writeJson('site-data/user.json', list, '删谱：'+u.title, cur&&cur.sha).then(function(res){
+          if(!res.ok) throw new Error('写 user.json 失败 '+res.status);
+          USER=list; rebuild(); renderDel(); prog(0,0);
+          log('✓ 已删除《'+u.title+'》。约一分钟后刷新生效。');
+        });
+      });
+    }).catch(function(e){ prog(0,0); log('✗ 删除失败：'+e.message); });
+  }
+
+  function doHide(no, on){
+    if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
+    var list=HIDDEN.slice();
+    if(on){ if(list.indexOf(no)<0) list.push(no); } else { list=list.filter(function(x){ return x!==no; }); }
+    readJson('site-data/hidden.json').then(function(cur){
+      return writeJson('site-data/hidden.json', list, (on?'隐藏':'取消隐藏')+'曲目 '+no, cur&&cur.sha)
+        .then(function(res){ if(!res.ok) throw new Error(res.status+' '+(res.json&&res.json.message));
+          HIDDEN=list; rebuild(); renderDel(); log('✓ 已'+(on?'隐藏':'取消隐藏')+'编号 '+no+'，约一分钟后生效'); });
+    }).catch(function(e){ log('✗ 失败：'+e.message); });
+  }
+
+  /* ---- 装配 ---- */
+  function init(){
+    baseLib=(window.LIB||[]).slice();
+    var t=$('#mTok'); if(t && tok()) t.value=tok();
+    whoami();
+    hydrate();
+    $('#mTokSave').onclick=function(){ var v=($('#mTok').value||'').trim();
+      if(!v) return log('✗ 令牌为空');
+      try{ localStorage.setItem(TOKKEY,v); }catch(e){ return log('✗ 本机不允许保存（隐私模式？）'); }
+      log('✓ 令牌已存到本机 localStorage'); whoami(); };
+    $('#mTokClear').onclick=function(){ try{ localStorage.removeItem(TOKKEY); }catch(e){} $('#mTok').value='';
+      $('#mWho').textContent='未连接'; log('✓ 已清除本机令牌'); };
+    $('#mAdd').onclick=doAdd;
+    $('#mDelq').addEventListener('input',renderDel);
+    $('#mShowHidden').addEventListener('change',renderDel);
+    $('#mDelList').addEventListener('click',function(e){
+      var d=e.target.getAttribute('data-del'), h=e.target.getAttribute('data-hide');
+      if(d) doDelete(+d); else if(h) doHide(+h, e.target.getAttribute('data-on')==='1');
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+})();
+
 </script>
 </body>
 </html>
