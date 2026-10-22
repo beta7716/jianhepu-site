@@ -97,6 +97,7 @@
   td.t{font-weight:600}
   .tag{display:inline-block;font-size:11px;padding:0 6px;border-radius:99px;background:var(--chip);color:var(--soft)}
   .tag.loc{background:var(--accent);color:#fff}
+  .tag.ok{background:#dcf2e3;color:#1a7f37}
   ul.srcs li{margin:5px 0;font-size:13.5px}
 
   /* 全屏放大查看器 */
@@ -131,6 +132,7 @@
   .kbd{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--chip);padding:1px 5px;border-radius:4px;
     overflow-wrap:anywhere;word-break:break-all}
   footer{max-width:1080px;margin:0 auto;padding:0 18px 40px;color:var(--soft);font-size:12.5px}
+
 </style>
 </head>
 <body>
@@ -220,13 +222,24 @@
 </section>
 <section id="v-mgr">
   <h2>管理曲库：上传 PDF 加谱 / 删除谱</h2>
-  <p class="muted">这个页面直接改 GitHub 仓库，提交后 Pages 约一分钟内自动重新部署。仓库是公开的，所以<b>令牌不会写进任何页面代码</b>：只在你自己这台设备的浏览器里输入一次，存在 localStorage，可以随时清除。换设备或清缓存后要重新输入。</p>
+  <p class="muted">这个页面直接改 GitHub 仓库，提交后 Pages 约一分钟内自动重新部署。仓库是公开的，所以<b>GitHub 令牌不会写进任何页面代码</b>：只在你自己这台设备的浏览器里输入一次，存在 localStorage，可以随时清除。</p>
+
+  <div class="card">
+    <b>0｜操作口令</b>
+    <p class="muted" style="margin:2px 0 8px">上传和删除前要先解锁。<b>这只是防手滑的二次确认，不是安全机制</b>——站点是公开静态的，真正的写权限门槛是 GitHub 令牌，没有令牌谁都改不了仓库。</p>
+    <div class="mrow">
+      <input type="password" id="mPass" placeholder="输入操作口令后解锁" style="width:220px" autocomplete="off">
+      <button id="mUnlock" class="btn">解锁</button>
+      <button id="mLock" class="btn g">重新锁定</button>
+      <span id="mLockState" class="tag">未解锁</span>
+    </div>
+  </div>
 
   <div class="card">
     <b>1｜连接仓库</b>
     <p class="muted" style="margin:2px 0 8px">需要一把只有这个仓库 Contents 写权限的 fine-grained 令牌（Settings → Developer settings → Fine-grained tokens → 只勾该仓库、Contents: Read and write）。</p>
     <div class="mrow">
-      <input type="password" id="mTok" placeholder="粘贴 GitHub 令牌（ghp_…）" style="flex:1;min-width:220px">
+      <input type="password" id="mTok" placeholder="粘贴 GitHub 令牌（github_pat_…）" style="flex:1;min-width:220px">
       <button id="mTokSave" class="btn">存到本机</button>
       <button id="mTokClear" class="btn g">清除</button>
       <span id="mWho" class="muted">未连接</span>
@@ -257,7 +270,7 @@
   </div>
 
   <p class="muted">提交成功后页面会提示；等一分钟左右刷新，新谱就会出现在「谱库」列表里（编号从 9001 起）。</p>
-</section>
+</section></section></section>
 </main>
 
 <footer>谱面渲染、级数和弦解析、试听引擎均为本页自建（除谱图与 data.js 外无外部依赖）。生成时间 2026-10-22。</footer>
@@ -549,12 +562,43 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   var REPO_OWNER='beta7716', REPO='jianhepu-site';
   var APIU='https://api.github.com/repos/'+REPO_OWNER+'/'+REPO+'/contents/';
   var TOKKEY='jh_token_'+REPO;
+  var LOCKKEY='jh_lock_'+REPO;
+  /* 操作口令的 SHA-256，源码里不放明文。这只是二次确认，不是安全机制。 */
+  var PASS_DIGEST='ef90d9c1ec76b1edc9edfaf2c0c05359c10ccc49ae8ecf7b7fd25ce9c02e86a4';
   var $=function(s){ return document.querySelector(s); };
   var enc=new TextEncoder();
   function esc(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
 
   function tok(){ try{ return localStorage.getItem(TOKKEY)||''; }catch(e){ return ''; } }
   function log(t){ var el=$('#mLog'); if(!el) return; el.textContent += (el.textContent?'\n':'') + t; el.scrollTop=el.scrollHeight; }
+
+  /* ---- 操作口令：会话级解锁，只存一次性标记，不存明文 ---- */
+  function unlocked(){ try{ return sessionStorage.getItem(LOCKKEY)==='1'; }catch(e){ return false; } }
+  function setLock(on){ try{ if(on) sessionStorage.setItem(LOCKKEY,'1'); else sessionStorage.removeItem(LOCKKEY); }catch(e){}
+    var st=$('#mLockState'); if(!st) return;
+    st.textContent = on ? '已解锁（本标签页有效）' : '未解锁';
+    st.className = 'tag' + (on ? ' ok' : '');
+    var p=$('#mPass'); if(p && !on) p.value=''; }
+  function sha256hex(str){
+    if(!(window.crypto && crypto.subtle)) return Promise.reject(new Error('浏览器不支持 crypto.subtle，请用 https 地址打开'));
+    return crypto.subtle.digest('SHA-256', enc.encode(str)).then(function(buf){
+      var u=new Uint8Array(buf), s='';
+      for(var i=0;i<u.length;i++) s+=(u[i]<16?'0':'')+u[i].toString(16);
+      return s;
+    });
+  }
+  function tryUnlock(){
+    var v=($('#mPass').value||'');
+    if(!v) return log('✗ 先输入操作口令');
+    var btn=$('#mUnlock'); if(btn) btn.disabled=true;
+    sha256hex(v).then(function(h){
+      if(btn) btn.disabled=false;
+      if(h===PASS_DIGEST){ setLock(true); $('#mPass').value=''; log('✓ 口令正确，已解锁。解锁只在这个标签页有效，关掉就锁回去。'); }
+      else { setLock(false); log('✗ 口令不对'); }
+    }).catch(function(e){ if(btn) btn.disabled=false; log('✗ '+e.message); });
+  }
+  function gate(){ if(unlocked()) return true; log('✗ 先在上方「0｜操作口令」里解锁'); return false; }
+
   function prog(done,total,label){ var w=$('#mProg'); if(!w) return; if(total<=0){w.hidden=true;return;}
     w.hidden=false; var b=w.firstElementChild; b.style.width=Math.round(done/total*100)+'%';
     b.textContent=label? (done+'/'+total+'  '+label) : (done+'/'+total); }
@@ -668,6 +712,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   }
 
   function doAdd(){
+    if(!gate()) return;
     var files=Array.prototype.slice.call($('#mFile').files||[]);
     if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
     if(!files.length) return log('✗ 先选 PDF 或图片');
@@ -729,6 +774,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   }
 
   function doDelete(no){
+    if(!gate()) return;
     var u=USER.filter(function(x){ return x.no===no; })[0]; if(!u) return;
     if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
     if(!confirm('确定删除《'+u.title+'》及其 '+u.pages.length+' 张图片？')) return;
@@ -753,6 +799,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   }
 
   function doHide(no, on){
+    if(!gate()) return;
     if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
     var list=HIDDEN.slice();
     if(on){ if(list.indexOf(no)<0) list.push(no); } else { list=list.filter(function(x){ return x!==no; }); }
@@ -766,9 +813,13 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   /* ---- 装配 ---- */
   function init(){
     baseLib=(window.LIB||[]).slice();
+    setLock(unlocked());
     var t=$('#mTok'); if(t && tok()) t.value=tok();
     whoami();
     hydrate();
+    $('#mUnlock').onclick=tryUnlock;
+    $('#mPass').addEventListener('keydown',function(e){ if(e.key==='Enter') tryUnlock(); });
+    $('#mLock').onclick=function(){ setLock(false); log('✓ 已重新锁定'); };
     $('#mTokSave').onclick=function(){ var v=($('#mTok').value||'').trim();
       if(!v) return log('✗ 令牌为空');
       try{ localStorage.setItem(TOKKEY,v); }catch(e){ return log('✗ 本机不允许保存（隐私模式？）'); }
@@ -785,7 +836,6 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 })();
-
 </script>
 </body>
 </html>
