@@ -538,8 +538,8 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
 <script type="module">
   /* pdf.js：上传 PDF 时在浏览器里逐页渲染成 WebP */
   try {
-    const m = await import('vendor/pdf.min.mjs');
-    m.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.mjs';
+    const m = await import('./vendor/pdf.min.mjs');
+    m.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
     window.__pdfjs = m;
   } catch (e) { console.warn('pdf.js 未加载：', e && e.message); }
 </script>
