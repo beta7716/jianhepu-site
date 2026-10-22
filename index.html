@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta name="robots" content="noindex,nofollow">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>写轮指 · 简和谱谱库（424 首在线）</title>
+<style>
+  :root{--paper:#fbf8f2;--ink:#22201d;--soft:#6b655c;--line:#d9d2c4;--accent:#1f6f5c;--accent2:#b4522d;
+    --chip:#efe8db;--card:#fffdf8;--now:#ffe9a8;--warn:#8a3324;--warnbg:#fbeceb}
+  @media (prefers-color-scheme:dark){:root{--paper:#191919;--ink:#eae6df;--soft:#a29b90;--line:#3a3833;
+    --accent:#6fd0b3;--accent2:#f0a374;--chip:#2b2a27;--card:#212123;--now:#5b4a12;--warn:#f2a09a;--warnbg:#2e211f}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);line-height:1.65;overflow-x:hidden;
+    font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+  header{max-width:1080px;margin:0 auto;padding:24px 18px 6px}
+  h1{margin:0 0 6px;font-size:25px}
+  .sub{margin:0;color:var(--soft);font-size:14px}
+  .banner{max-width:1080px;margin:12px auto 0;padding:0 18px}
+  .banner>div{background:var(--warnbg);border-left:3px solid var(--warn);border-radius:6px;padding:10px 13px;font-size:13.5px}
+  nav{max-width:1080px;margin:16px auto 0;padding:8px 18px 10px;display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;
+    background:var(--paper);z-index:30;border-bottom:1px solid var(--line)}
+  nav button{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 13px;border-radius:99px;font-size:14px;cursor:pointer;font-family:inherit}
+  nav button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  main{max-width:1080px;margin:0 auto;padding:6px 18px 70px}
+  section{display:none}section.on{display:block}
+  h2{font-size:19px;margin:24px 0 8px;padding-left:10px;border-left:4px solid var(--accent)}
+  h3{font-size:16px;margin:18px 0 6px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 17px;margin:13px 0}
+  #score{overflow-x:auto}
+  .muted{color:var(--soft);font-size:13px}
+  a{color:var(--accent)}
+  /* 谱库 */
+  .lib{display:grid;grid-template-columns:250px minmax(0,1fr);gap:14px;margin-top:12px}
+  @media(max-width:820px){.lib{grid-template-columns:minmax(0,1fr)}}
+  .libside{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:10px;max-height:72vh;overflow:auto;min-width:0}
+  .libside input{width:100%;font-family:inherit;font-size:14px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink)}
+  .libside ul{list-style:none;margin:8px 0 0;padding:0}
+  .libside li{padding:6px 8px;border-radius:7px;font-size:13.5px;cursor:pointer;display:flex;gap:6px;align-items:baseline}
+  .libside li:hover{background:var(--chip)}
+  .libside li.on{background:var(--accent);color:#fff}
+  .libside li .no{color:var(--soft);font-size:11.5px;font-variant-numeric:tabular-nums}
+  .libside li.on .no{color:#dff}
+  .viewer{border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px;min-height:300px;min-width:0;overflow:hidden}
+  .viewer .stage{overflow:auto;max-height:70vh;background:#fff;min-width:0}
+  .viewer img{display:block;margin:0 auto;width:100%;cursor:zoom-in}
+  .vbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--soft)}
+  .vbar button,.vbar select{font-family:inherit;font-size:13px;border:1px solid var(--line);background:var(--chip);color:var(--ink);
+    padding:5px 10px;border-radius:7px;cursor:pointer}
+  .vbar input[type=range]{width:120px;accent-color:var(--accent)}
+  .vt{font-weight:700;font-size:15px;color:var(--ink);margin:2px 0 6px}
+  /* 简和谱渲染 */
+  .sys{margin:0 0 14px}
+  .ruler{display:flex;gap:6px;margin-bottom:4px}
+  .labsp{flex:0 0 44px}
+  .rcell{flex:0 0 auto;background:var(--chip);border:1px solid var(--line);border-radius:4px;
+    text-align:center;font-size:11.5px;color:var(--soft);padding:1px 0;box-sizing:content-box}
+  .line{display:flex;gap:6px;align-items:flex-start}
+  .lab{flex:0 0 44px;font-size:12.5px;color:var(--soft);padding-top:26px}
+  .bar{border-right:1.5px solid var(--line);padding:0 6px;flex:0 0 auto}
+  .bar.dashed{border-right-style:dashed;border-right-width:2px}
+  .row{display:flex}
+  .crow{align-items:flex-start}
+  .chseg{flex:0 0 auto}
+  .cell{width:30px;flex:0 0 auto;display:flex;flex-direction:column;align-items:center;position:relative;border-radius:5px}
+  .cell.w2{width:48px}.cell.w3{width:66px}
+  .cell.now{background:var(--now)}
+  .nup{height:9px;font-size:10px;line-height:9px}
+  .ndg{font-size:20px;line-height:21px;font-weight:600;font-variant-numeric:tabular-nums;position:relative}
+  .ndg .dt{position:absolute;right:-6px;top:2px;font-size:12px}
+  .ndn{height:11px;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:1px}
+  .ul{width:16px;height:2px;background:var(--ink);border-radius:2px}
+  .nlo{font-size:10px;line-height:8px}
+  .dash{font-size:17px;line-height:21px;color:var(--soft)}
+  .crow{min-height:30px}
+  .chd{font-size:11.5px;color:var(--accent2);font-weight:700;white-space:nowrap;display:flex;flex-direction:column;align-items:flex-start;line-height:1.05}
+  .ndg .dash{font-size:15px;color:var(--soft);font-style:normal;margin-left:1px}
+  .chd .inv{display:flex;flex-direction:column;align-items:center}
+  .chd .inv em{font-style:normal;font-size:10px;color:var(--soft)}
+  .chd .q{font-size:10px;font-weight:600}
+  .lrow{min-height:20px}
+  .ly{font-size:13px;color:var(--ink)}
+  .legend{display:flex;flex-wrap:wrap;gap:5px 16px;font-size:12.5px;color:var(--soft);margin-top:8px}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0}
+  .controls button{border:1px solid var(--accent);background:var(--accent);color:#fff;padding:8px 15px;border-radius:8px;font-size:14px;cursor:pointer;font-family:inherit}
+  .controls button.g{background:transparent;color:var(--accent)}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chips button{border:1px solid var(--line);background:var(--chip);color:var(--ink);padding:5px 11px;border-radius:99px;font-size:13px;cursor:pointer;font-family:inherit}
+  .chips button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  label.ctl{font-size:13px;color:var(--soft);display:flex;align-items:center;gap:6px}
+  input[type=range]{accent-color:var(--accent)}
+  select,input[type=search]{font-family:inherit;font-size:13.5px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{padding:6px 7px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{color:var(--soft);font-weight:600;font-size:12px;position:sticky;top:0;background:var(--paper)}
+  tbody tr:hover{background:var(--chip)}
+  td.t{font-weight:600}
+  .tag{display:inline-block;font-size:11px;padding:0 6px;border-radius:99px;background:var(--chip);color:var(--soft)}
+  .tag.loc{background:var(--accent);color:#fff}
+  ul.srcs li{margin:5px 0;font-size:13.5px}
+
+  /* 全屏放大查看器 */
+  .fsx{position:fixed;inset:0;z-index:9999;background:rgba(16,16,16,.96);display:flex;flex-direction:column}
+  .fsx[hidden]{display:none}
+  .fsx-bar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:8px 12px;background:rgba(0,0,0,.45);color:#fff}
+  .fsx-bar button{font-family:inherit;font-size:13px;border:1px solid #555;background:#2d2d2d;color:#eee;padding:6px 11px;border-radius:7px;cursor:pointer}
+  .fsx-bar button:hover{background:#3d3d3d}
+  .fsx-info{font-size:12.5px;color:#bbb;margin-left:auto}
+  .fsx-canvas{flex:1;overflow:hidden;position:relative;cursor:grab;touch-action:none}
+  .fsx-canvas img{position:absolute;top:0;left:0;transform-origin:0 0;max-width:none;user-select:none;-webkit-user-drag:none}
+  .kbd{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--chip);padding:1px 5px;border-radius:4px;
+    overflow-wrap:anywhere;word-break:break-all}
+  footer{max-width:1080px;margin:0 auto;padding:0 18px 40px;color:var(--soft);font-size:12.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>写轮指 · 简和谱谱库</h1>
+  <p class="sub">中国曲谱网谱友「写轮指」(ID 347883)｜简和谱 = 简谱＋级数和弦｜<b id="libN">0</b> 首谱图已在线收录，首谱图在线可看</p>
+</header>
+
+<div class="banner"><div><b>这是写轮指简和谱的在线谱库。</b>424 首谱图全部可看，图片是 1150px 宽的网页压缩版；你电脑上还有原始大图与 10 张高清 PNG。谱图版权归打谱者与「写轮指」账号所有，水印未处理，仅供个人练琴。</div></div>
+
+<nav>
+  <button data-v="lib" class="on">谱库（真谱）</button>
+  <button data-v="how">这谱怎么读</button>
+  <button data-v="src">来源与局限</button>
+</nav>
+
+<main>
+<!-- ============ 谱库 ============ -->
+<section id="v-lib" class="on">
+  <h2>谱库（424 首 / 749 页全量）</h2>
+  <p class="muted">共 <b>424 首 / 749 页</b>（另 2 首站点本身没有谱图：白狐、给我一个理由忘记）。多数一首两页：<b>第1页=专业版</b>（旋律＋和弦），<b>第2页=弹唱版</b>（只有和弦＋歌词）。
+  本页图片为网页压缩版；原始大图与词曲网高清 PNG 在你本地 <span class="kbd">谱图\</span>、<span class="kbd">谱图高清\</span>。带 <span class="tag loc">高清</span> 的 10 首另有词曲网 2050×2879 PNG，点"切到高清"看；两首<b>写轮指即兴版</b>（爱与诚 5 页、心动 3 页）只有词曲网有全页。</p>
+  <div class="lib">
+    <div class="libside">
+      <input type="search" id="libq" placeholder="搜歌名 / 演唱…">
+      <ul id="libList"></ul>
+    </div>
+    <div>
+      <div class="viewer">
+        <div class="vt" id="vTitle"></div>
+        <div class="stage" id="vStage"><img id="vImg" alt="曲谱"></div>
+      </div>
+      <div class="vbar">
+        <button id="vHd" style="display:none">切到高清</button>
+        <button id="vPrev">← 上一页</button><button id="vNext">下一页 →</button>
+        <span id="vPage"></span>
+        <label class="ctl">宽 <input type="range" id="vZoom" min="50" max="200" value="100">%</label>
+        <button id="vOpen">原图新窗口打开</button>
+        <span class="muted" id="vMeta"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 怎么读 ============ -->
+<section id="v-how">
+  <h2>他这套谱的读法（照着真谱核对过）</h2>
+  <div class="card">
+    <h3>1｜圆圈数字是和弦级数，不是音名</h3>
+    <p>①②③⑤⑥⑦ 表示音级。谱左上写 <b>1=C</b>，则 ①=C、④=F、⑤=G；写 <b>1=D</b>（《成都》），① 就变 D。<b>好处：换调不用重新记谱</b>，级数照弹，第三屏那个转调下拉就是演示这件事。</p>
+    <h3>2｜后缀是和弦色彩</h3>
+    <p><b>①add9</b> 一级加九度；<b>③m7</b> 三级小七；<b>⑥m</b> 六级小三；<b>①maj7</b> 一级大七；<b>⑤7/9</b> 属七加九；<b>♯④m7⁻⁵</b> 升四级半减七（《小星星》第 2 小节那个过度和弦）。小星星专业版整首只用了 ①②③⑤♯④♭⑥ 这几级，色彩全在七九度上。</p>
+    <h3>3｜斜线转位：读法跟别人相反</h3>
+    <p>他自述第 4 条：<b>斜线前是低音，斜线后是和弦</b>。谱面上画成上下两个圆圈，<b>上面那个是低音</b>。所以 <b>⑤/①</b> = ① 和弦（C 大三）＋低音 ⑤（G）= 通行的 C/G；<b>③/①</b> = C 和弦低音 E = C/E。别按流行的"C/E 读成 C 和弦加 E 低音"去读他的谱，会读反。</p>
+    <h3>4｜虚线小节线 = 弱起</h3>
+    <p>《成都》顶部灰条第一格直接写着"弱起小节"，正文里那一格右边框是虚线，唱词从最后一拍进。见到虚线框，下一小节让出一拍。</p>
+    <h3>5｜顶部灰条 = 小节标尺 / 反复提示</h3>
+    <p>每行上方那排灰格标着"1 小节 / 2 小节 / 3 小节 / 4 小节"，是按小节数对齐的标尺，帮你数进行到哪；他自述的"灰色横线提示重复段落"就是这个——同一列对齐的段落即反复结构。</p>
+    <h3>6｜版本：专业版 / 弹唱版 /（唯美版）</h3>
+    <p>右上角竖排印章标版本。<b>专业版</b>＝旋律简谱＋和弦，适合照弹；<b>弹唱版</b>＝只有和弦级数＋歌词，给你自己弹唱、即兴配左手；他文字说明里还提到<b>唯美版</b>（适合新手）。同一首的两页和弦密度差很多，小星星专业版第 2 小节塞了 ④→♯④m7⁵→⑤ 三个和弦，弹唱版同一小节只有 ④→①。</p>
+    <h3>7｜行首段落标签</h3>
+    <p>A段 / B段 / 前奏 / 主歌1 / 副歌1。他第 2 条建议就是按这些段落换伴奏型：主歌柱式铺底，副歌再上分解。</p>
+    <h3>8｜署名不全是写轮指本人</h3>
+    <p>小星星专业版写"打谱：小乔"、弹唱版写"打谱：写轮指"、《成都》写"打谱：一秒"。这些谱上传署名都是"写轮指"，但打谱的是一个团队/多人，所以不同曲子的编配口味并不统一。</p>
+  </div>
+</section>
+
+<!-- ============ 来源 ============ -->
+<section id="v-src">
+  <h2>数据怎么来的、哪些没验证</h2>
+  <ul class="srcs">
+    <li>目录与谱图：直连中国曲谱网 qupu123.com 抓取（列表 <span class="kbd">/Mobile-lists.html?id=347883&amp;p=1..43&amp;type=user</span>，详情 <span class="kbd">/Mobile-view-id-*.html</span>，图片 <span class="kbd">/Public/Uploads/…jpg</span>）。共 426 条、749 页，其中 2 条站点无图。</li>
+    <li><b>抓取绕过了一个网络故障</b>：这台机器的本地 DNS 解析不出 qupu123.com（浏览器报 ERR_NAME_NOT_RESOLVED），AliDNS 能解析到 <span class="kbd">27.102.129.129</span>，且该服务器只有 80 端口通、443 不通，所以脚本走 http + Host 头直连。站点换 IP 后要重取：<span class="kbd">curl "https://dns.alidns.com/resolve?name=qupu123.com&amp;type=A"</span>。</li>
+    <li>读谱规则：他每张谱附带的原文说明（专业版/唯美版/弹唱版、段落、弱起虚线、转位斜线、灰色横线）＋ 我逐张读图核对。<b>级数和弦（①②③…）这一点是我看图才搞清楚的，之前那版页面用 C/F/G 字母和弦，是错的，已改。</b></li>
+    <li>《小星星》旋律/歌词/和弦：编号 232 专业版第 1 页与弹唱版第 2 页，逐小节转写。</li>
+  </ul>
+  <h3>仍未做到</h3>
+  <ul class="srcs">
+    <li>本页图片为 950px 宽的网页版；原始抓取件（424 首 / 749 页 / 约 342MB）与词曲网高清 PNG 保存在本地。站点本身无图的 2 首（白狐、给我一个理由忘记）除外；编号 239《Wish You A Merry Christmas》因歌名以「…」结尾触发 Windows 文件名限制，已清洗文件名补下成功。</li>
+    <li><b>词曲网 ktvc8.com（你找到的那个站）已经扒完比对过</b>：写轮指园地 8 页 / 153 条 / 388 页谱图，但 148 个可匹配曲名里只有 2 个对不上中国曲谱网，且那 2 个还是同一首的不同写法（爱很简单、今天是你的生日）——<b>它是中国曲谱网的子集，数量上补不到新东西</b>。它的反爬是个假滑动验证：GET <span class="kbd">/verify.asp?action=verify_pass</span> 发 <span class="kbd">SITE_VERIFY_OK</span> cookie 就过；谱页地址藏在 <span class="kbd">/showvisitjs.asp?ID=条目号&amp;uID=214362</span> 返回的 JS 里，连页面上写"须登陆后才能看到"的后续页也一起给。真正补到三样：① 8 首本地曲目的 2050×2879 高清 PNG；②《爱与诚》《心动》写轮指即兴版 5 页 / 3 页全页；③ 反过来发现它有 4 条完全锁在登录后（少年、火烧的寂寞、月之故乡、袖手旁观），这四首中国曲谱网反而能拿到。</li>
+    <li>站点自身的错标我照录未改（例：《默》演唱写"周杰伦"，原唱那英；《女儿情》写"冯珊珊"）。</li>
+    <li>试听音色是合成器，不是钢琴采样；也没做延音踏板与力度层次。</li>
+  </ul>
+  <h3>版权</h3>
+  <p class="muted">谱图版权归打谱者与写轮指本人，水印与"上传于中国曲谱网"字样都在图上，我未做任何抹除。本页面与这些图片仅供你个人练琴，别二次发布、别打包分享。</p>
+</section>
+</main>
+
+<footer>谱面渲染、级数和弦解析、试听引擎均为本页自建（除谱图与 data.js 外无外部依赖）。生成时间 2026-10-22。</footer>
+
+<script src="data.js"></script>
+<script>
+/* ========== 级数和弦 ========== */
+var CIRC={1:'①',2:'②',3:'③',4:'④',5:'⑤',6:'⑥',7:'⑦'};
+var DEG_OFF=[0,2,4,5,7,9,11];
+var QUAL={'':[0,4,7],'m':[0,3,7],'7':[0,4,7,10],'maj7':[0,4,7,11],'m7':[0,3,7,10],'m7-5':[0,3,6,10],
+  'm7b5':[0,3,6,10],'add9':[0,4,7,14],'7/9':[0,4,7,10,14],'9':[0,4,7,10,14],'6':[0,4,7,9],
+  'sus4':[0,5,7],'sus2':[0,2,7],'5':[0,7],'11':[0,4,7,10,17]};
+function parseChord(str){
+  var s=String(str).trim(), parts=s.split('/'), chordPart, bassPart=null;
+  if(parts.length>1 && /^[#b]?[1-7]$/.test(parts[0])){ bassPart=parts[0]; chordPart=parts.slice(1).join('/'); }
+  else chordPart=s;
+  var m=chordPart.match(/^([#b]?)([1-7])(.*)$/); if(!m) return null;
+  var rest=m[3], q='';
+  var QS=['m7-5','m7b5','maj7','add9','7/9','sus4','sus2','11','m7','7','9','6','m','5'];
+  for(var i=0;i<QS.length;i++){ if(rest.indexOf(QS[i])===0){ q=QS[i]; break; } }
+  return {acc:m[1],deg:+m[2],q:q,iv:QUAL[q]||QUAL[''],bass:bassPart};
+}
+function degMidi(d,acc,keyOff){ var n=(+d)-1; return 60+((keyOff+DEG_OFF[n]+(acc==='#'?1:acc==='b'?-1:0))%12+12)%12; }
+function chordMidi(str,keyOff){
+  var p=parseChord(str); if(!p) return null;
+  var root=degMidi(p.deg,p.acc,keyOff);
+  var tones=p.iv.map(function(x){return root+x;});
+  var bass=root-12;
+  if(p.bass){ var bd=p.bass.replace(/[^1-7]/g,''), ba=p.bass[0]==='#'?'#':(p.bass[0]==='b'?'b':'');
+    bass=degMidi(+bd,ba,keyOff)-12;
+    while(bass>root-1) bass-=12;
+    while(bass<root-17) bass+=12;
+  }
+  return {root:root,tones:tones,bass:bass};
+}
+function chordHTML(str){
+  var p=parseChord(str); if(!p) return '';
+  var acc=p.acc==='#'?'♯':p.acc==='b'?'♭':'';
+  var top=(p.bass?((/^[#b]/.test(p.bass)?(p.bass[0]==='#'?'♯':'♭'):'')+CIRC[+p.bass.replace(/[^1-7]/g,'')]):'');
+  var body='<span>'+acc+CIRC[p.deg]+'<span class="q">'+p.q+'</span></span>';
+  if(p.bass) return '<span class="inv"><i>'+top+'</i><em>/</em>'+body+'</span>';
+  return body;
+}
+
+/* ========== 简谱音符 ========== */
+function parseTok(t){
+  var i=0,acc=0;
+  if(t[i]==='#'){acc=1;i++;} else if(t[i]==='b'){acc=-1;i++;}
+  var deg=parseInt(t[i],10); i++;
+  var oct=0;
+  while(t[i]==='^'){oct++;i++;} while(t[i]==='_'){oct--;i++;}
+  var beats=1,div=1,dot=false;
+  for(;i<t.length;i++){var c=t[i]; if(c==='-')beats++; else if(c==='<')div*=2; else if(c==='.')dot=true;}
+  var dur=beats/div; if(dot)dur*=1.5;
+  return {deg:deg,oct:oct,acc:acc,beats:beats,lines:Math.round(Math.log2(div)),dot:dot,dur:dur,rest:deg===0};
+}
+
+/* ========== 曲目（小星星=照他专业版/弹唱版读图） ========== */
+var STAR_MEL=['1 1 5 5','6 6 5 -','4 4 3 3','2 2 1 -','5 5 4 4','3 3 2 -','5 5 4 4','3 3 2 -',
+              '1 1 5 5','6 6 5 -','4 4 3 3','2 2 1 -'];
+var STAR_LY=['一闪一闪','亮晶晶','满天都是','小星星','挂在天上','放光明','好像千万','小眼睛',
+             '一闪一闪','亮晶晶','满天都是','小星星'];
+var STAR_PRO=[['1add9'],['4','#4m7-5','5'],['4','5/1'],['57/9','1add9'],['1add9','2m7'],['3/1','4/2m7-5'],
+              ['5/1','b6/4m'],['5/1'],['1add9'],['4','#4m7-5','5'],['4','5/1'],['57/9','1add9']];
+var STAR_SING=[['1','1'],['4','1'],['4','1'],['5','1'],['1','4'],['1','5'],['1','4'],['1','5'],
+               ['1','1'],['4','1'],['4','1'],['5','1']];
+var STAR_SLOT_PRO=[[0],[0,1,2],[0,2],[0,1],[0,2],[0,1],[0,2],[0],[0],[0,1,2],[0,2],[0,1]];
+var STAR_SLOT_SING=[[0,2],[0,2],[0,2],[0,2],[0,2],[0,2],[0,2],[0,2],[0,2],[0,2],[0,2],[0,2]];
+var ODE_MEL=['3 3 4 5','5 4 3 2','1 1 2 3','3 2 2 -','3 3 4 5','5 4 3 2','1 1 2 3','2 1 1 -'];
+var ODE_CH=[['1add9'],['1'],['1'],['5'],['4'],['1'],['5'],['1']];
+var ODE_SLOT=[[0],[0],[0],[0],[0],[0],[0],[0]];
+var TUNES={
+  star:{name:'小星星',src:'照他编号 232 专业版读图',bpm:88,ts:'4/4',secs:['A段','B段','A段'],
+        mel:STAR_MEL,ly:STAR_LY,vers:{专业版:[STAR_PRO,STAR_SLOT_PRO],弹唱版:[STAR_SING,STAR_SLOT_SING]}},
+  ode:{name:'欢乐颂（和弦是我编的）',src:'旋律公版，配器演示',bpm:96,ts:'4/4',secs:['主题','接句'],
+       mel:ODE_MEL,ly:['','','','','','','','','','','',''],vers:{演示版:[ODE_CH,ODE_SLOT]}}
+};
+var KEYS={'C':0,'Db':1,'D':2,'Eb':3,'E':4,'F':5,'Gb':6,'G':7,'Ab':8,'A':9,'Bb':10,'B':11};
+
+/* ========== 渲染 ========== */
+function slotW(tok){ var p=parseTok(tok); return 30+18*(Math.min(3,p.beats)-1); }
+function barWidth(toks){ var w=0; toks.forEach(function(t){w+=slotW(t);}); return w+16; }
+function renderSystem(tune,ver,keyOff){
+  var bars=tune.mel.length, per=4, html='';
+  var chords=tune.vers[ver][0], slots=tune.vers[ver][1];
+  /* 把独立的增时线 token「-」并回前一个音符 */
+  var mel=tune.mel.map(function(b){ return b.replace(/\s+-/g,'-').split(/\s+/).filter(Boolean); });
+  for(var s=0;s<bars;s+=per){
+    var end=Math.min(s+per,bars);
+    html+='<div class="sys"><div class="ruler"><span class="labsp"></span>';
+    for(var b=s;b<end;b++) html+='<div class="rcell" style="width:'+barWidth(mel[b])+'px">'+(((b%4)+1))+' 小节</div>';
+    html+='</div><div class="line">';
+    html+='<div class="lab">'+(tune.secs[Math.floor(s/per)]||'')+'</div>';
+    for(b=s;b<end;b++){
+      var toks=mel[b], n=toks.length, mrow='', lrow='', chMap={}, segs=[];
+      (chords[b]||[]).forEach(function(c,k){ chMap[slots[b][k]]=c; });
+      for(var i=0;i<n;i++){
+        var p=parseTok(toks[i]);
+        var w=p.beats>1?(' w'+Math.min(3,p.beats)):'';
+        var dsh=p.beats>1?('<i class="dash">'+'–'.repeat(Math.min(2,p.beats-1))+'</i>'):'';
+        mrow+='<div class="cell'+w+'" data-b="'+b+'" data-i="'+i+'">'
+          +'<span class="nup">'+(p.oct>0?'•'.repeat(p.oct):'')+'</span>'
+          +'<span class="ndg">'+(p.rest?'0':p.deg)+dsh+(p.dot?'<i class="dt">·</i>':'')+'</span>'
+          +'<span class="ndn">'+('<i class="ul"></i>'.repeat(p.lines))+(p.oct<0?'<span class="nlo">'+'•'.repeat(-p.oct)+'</span>':'')+'</span></div>';
+        var cw=slotW(toks[i]);
+        if(chMap[i]!=null) segs.push({c:chMap[i],w:cw});
+        else if(segs.length) segs[segs.length-1].w+=cw;
+        else segs.push({c:'',w:cw});
+        var ly=(tune.ly[b]||'')[i]||'';
+        lrow+='<div class="cell'+w+'"><span class="ly">'+ly+'</span></div>';
+      }
+      var crow='';
+      segs.forEach(function(g){ crow+='<div class="chseg" style="width:'+g.w+'px"><div class="chd">'+(g.c?chordHTML(g.c):'')+'</div></div>'; });
+      html+='<div class="bar"><div class="row">'+mrow+'</div><div class="row crow">'+crow+'</div><div class="row lrow">'+lrow+'</div></div>';
+    }
+    html+='</div></div>';
+  }
+  return html;
+}
+
+/* ========== 播放 ========== */
+var ctx,master,playing=false,raf,els=[];
+function ac(){ if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.gain.value=.2;master.connect(ctx.destination);} if(ctx.state==='suspended')ctx.resume(); return ctx; }
+function voice(f,t,d,type,g){ var o=ctx.createOscillator(),gn=ctx.createGain(); o.type=type; o.frequency.value=f;
+  gn.gain.setValueAtTime(0,t); gn.gain.linearRampToValueAtTime(g,t+.012); gn.gain.exponentialRampToValueAtTime(.0008,t+Math.max(.09,d*.95));
+  o.connect(gn); gn.connect(master); o.start(t); o.stop(t+d+.05); }
+function f(m){ return 440*Math.pow(2,(m-69)/12); }
+var curTune='star',curVer=null;
+function play(){
+  ac(); if(playing) return stop();
+  var tune=TUNES[curTune], bpm=+document.getElementById('bpm').value, pat=document.getElementById('pattern').value;
+  var keyOff=KEYS[document.getElementById('keySel').value];
+  var ver=curVer||Object.keys(tune.vers)[0];
+  document.getElementById('score').innerHTML=renderSystem(tune,ver,keyOff);
+  els=Array.prototype.slice.call(document.querySelectorAll('#score .cell[data-b]'));
+  var spb=60/bpm, beat=0, mel=[];
+  var chords=tune.vers[ver][0], slots=tune.vers[ver][1];
+  tune.mel.forEach(function(bar,b){
+    var bs=beat;
+    (chords[b]||[]).forEach(function(c,k){
+      var cm=chordMidi(c,keyOff); if(!cm) return;
+      var at=(bs+slots[b][k]*1)*spb;
+      var span=(pat==='block'?spb*4:spb*2);
+      if(pat!=='none'){
+        if(pat==='arp'){ var seq=[cm.bass,cm.tones[0]+12,cm.tones[2]+12,cm.tones[1]+12,cm.tones[0]+12,cm.tones[2]+12,cm.tones[1]+12,cm.tones[2]+12];
+          seq.forEach(function(m,i){ voice(f(m),bs*spb+i*spb*.5,spb*.5,'triangle',.26); }); }
+        else if(pat==='half'){ cm.tones.forEach(function(m){voice(f(m+12),at,spb*1.7,'triangle',.24);}); voice(f(cm.bass),at,spb*1.7,'sine',.4); }
+        else { cm.tones.forEach(function(m){voice(f(m+12),at,spb*3.6,'triangle',.24);}); voice(f(cm.bass),at,spb*3.6,'sine',.42); }
+      }
+    });
+    bar.replace(/\s+-/g,'-').split(/\s+/).filter(Boolean).forEach(function(t,i){
+      var p=parseTok(t);
+      var el=els.filter(function(e){return e.dataset.b==b&&e.dataset.i==i;})[0]||null;
+      if(!p.rest){ var m=60+keyOff+DEG_OFF[p.deg-1]+p.acc+12*(p.oct+1); mel.push({t:beat*spb,d:spb*p.dur*.92,m:m,el:el}); }
+      beat+=p.dur;
+    });
+    beat=Math.max(beat,bs+4);
+  });
+  var t0=ctx.currentTime+.08;
+  mel.forEach(function(e){ voice(f(e.m),t0+e.t,e.d,'square',.26); });
+  var total=mel.length?mel[mel.length-1].t+mel[mel.length-1].d:0;
+  playing=true; document.getElementById('playBtn').textContent='⏸ 暂停';
+  (function tick(){ if(!playing)return; var x=ctx.currentTime-t0, act=null;
+    for(var i=0;i<mel.length;i++){ if(mel[i].t<=x&&x<mel[i].t+mel[i].d){act=mel[i].el;break;} }
+    els.forEach(function(e){ e.classList.toggle('now',e===act); });
+    if(x>total+.2) return stop(); raf=requestAnimationFrame(tick); })();
+}
+function stop(){ playing=false; cancelAnimationFrame(raf); els.forEach(function(e){e.classList.remove('now');});
+  var b=document.getElementById('playBtn'); if(b)b.textContent='▶ 播放'; }
+
+/* ========== 装配 ========== */
+function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)[0];
+  document.getElementById('score').innerHTML=renderSystem(tune,ver,KEYS[document.getElementById('keySel').value]); }
+(function(){
+  /* 谱库 */
+  var LIB=window.LIB||[], CAT=window.CAT||[];
+  document.getElementById('libN').textContent=LIB.length;
+  var _cn=document.getElementById('catN'); if(_cn)_cn.textContent=CAT.length;
+  var sel=0,page=0,list=document.getElementById('libList');
+  function paintList(){ var q=(document.getElementById('libq').value||'').trim().toLowerCase();
+    list.innerHTML=''; LIB.forEach(function(x,i){ if(q&&(x.t+x.s).toLowerCase().indexOf(q)<0)return;
+      var li=document.createElement('li'); li.innerHTML='<span class="no">'+x.no+'</span><span>'+x.t.replace('（简和谱）','')+(x.hd&&x.hd.length?' <span class="tag loc">高清</span>':'')+(x.src&&x.src.indexOf('词曲')>=0?' <span class="tag">即兴版</span>':'')+'</span>';
+      if(i===sel)li.className='on'; li.onclick=function(){sel=i;page=0;paintList();paintOne();}; list.appendChild(li);
+    });
+  }
+  var hdMode=false;
+  function actPages(s){ return (hdMode&&s.hd&&s.hd.length)?s.hd:s.pages; }
+  function paintOne(){ var s=LIB[sel]; if(!s)return;
+    var ps=actPages(s); if(page>=ps.length)page=ps.length-1; if(page<0)page=0;
+    document.getElementById('vTitle').textContent=s.no+' · '+s.t.replace('（简和谱）','')+'　'+(s.s||'')+'　'+(s.src||'中国曲谱网');
+    document.getElementById('vImg').src=ps[page];
+    var lb=(s.labels&&s.labels[page])?s.labels[page]:('第 '+(page+1)+' 页');
+    document.getElementById('vPage').textContent='第 '+(page+1)+' / '+ps.length+' 页 · '+lb;
+    document.getElementById('vMeta').textContent='词 '+(s.ly||'—')+' ／ 曲 '+(s.mu||'—');
+    var hb=document.getElementById('vHd');
+    if(s.hd&&s.hd.length){ hb.style.display=''; hb.textContent=hdMode?('切回全页版（'+s.pages.length+' 页）'):('切到高清（'+s.hd.length+' 页）'); }
+    else { hb.style.display='none'; hdMode=false; }
+  }
+  document.getElementById('vHd').onclick=function(){ hdMode=!hdMode; page=0; paintOne(); };
+  document.getElementById('vPrev').onclick=function(){ if(page>0){page--;paintOne();} };
+  document.getElementById('vNext').onclick=function(){ if(page<LIB[sel].pages.length-1){page++;paintOne();} };
+  document.getElementById('vZoom').oninput=function(){ document.getElementById('vImg').style.width=this.value+'%'; };
+  document.getElementById('vOpen').onclick=function(){ window.open(actPages(LIB[sel])[page]); };
+  document.getElementById('libq').addEventListener('input',paintList);
+  paintList(); paintOne();
+
+  /* ===== 全屏放大查看器 ===== */
+  (function(){
+    var wrap=document.createElement('div'); wrap.className='fsx'; wrap.hidden=true;
+    wrap.innerHTML='<div class="fsx-bar"><button data-a="close">✕ 退出（Esc）</button>'
+      +'<button data-a="out">－</button><button data-a="in">＋</button>'
+      +'<button data-a="one">1:1 原始像素</button><button data-a="fit">适应窗口</button>'
+      +'<button data-a="prev">← 上一页</button><button data-a="next">下一页 →</button>'
+      +'<span class="fsx-info"></span></div><div class="fsx-canvas"><img alt="曲谱放大"></div>';
+    document.body.appendChild(wrap);
+    var canvas=wrap.querySelector('.fsx-canvas'), img=wrap.querySelector('.fsx-canvas img'),
+        info=wrap.querySelector('.fsx-info'), s=1, tx=0, ty=0, drag=null, pts={}, pinch=null;
+    function box(){ return canvas.getBoundingClientRect(); }
+    function apply(){ img.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';
+      info.textContent=Math.round(s*100)+'%'+(img.naturalWidth?(' · 原图 '+img.naturalWidth+'×'+img.naturalHeight):''); }
+    function fit(){ var r=box(); if(!img.naturalWidth) return;
+      s=Math.min(r.width/img.naturalWidth, r.height/img.naturalHeight);
+      tx=(r.width-img.naturalWidth*s)/2; ty=(r.height-img.naturalHeight*s)/2; apply(); }
+    function one(){ var r=box(); s=1; tx=(r.width-img.naturalWidth)/2; ty=Math.max(0,(r.height-img.naturalHeight)/2); apply(); }
+    function zoomAt(cx,cy,k){ var r=box(), px=cx-r.left, py=cy-r.top, ns=Math.min(10,Math.max(0.15,s*k));
+      tx-=(px-tx)*(ns/s-1); ty-=(py-ty)*(ns/s-1); s=ns; apply(); }
+    function center(k){ var r=box(); zoomAt(r.left+r.width/2, r.top+r.height/2, k); }
+    function step(d){ var ps=actPages(LIB[sel]), np=page+d; if(np<0||np>=ps.length) return;
+      page=np; paintOne(); img.src=ps[page]; }
+    function show(){ var ps=actPages(LIB[sel]); if(!ps.length) return;
+      img.src=ps[page]; wrap.hidden=false; document.body.style.overflow='hidden';
+      if(canvas.requestFullscreen && !document.fullscreenElement) canvas.requestFullscreen().catch(function(){}); }
+    function hide(){ wrap.hidden=true; document.body.style.overflow='';
+      if(document.fullscreenElement) document.exitFullscreen().catch(function(){}); }
+    img.addEventListener('load',fit);
+    wrap.querySelector('.fsx-bar').addEventListener('click',function(e){
+      var a=e.target.getAttribute('data-a'); if(!a) return;
+      if(a==='close') hide(); else if(a==='in') center(1.25); else if(a==='out') center(0.8);
+      else if(a==='one') one(); else if(a==='fit') fit(); else if(a==='prev') step(-1); else if(a==='next') step(1); });
+    canvas.addEventListener('wheel',function(e){ e.preventDefault(); zoomAt(e.clientX,e.clientY,e.deltaY<0?1.15:0.87); },{passive:false});
+    canvas.addEventListener('dblclick',function(){ if(s>1.02) fit(); else one(); });
+    canvas.addEventListener('pointerdown',function(e){ pts[e.pointerId]=e; canvas.setPointerCapture(e.pointerId);
+      if(Object.keys(pts).length===2){ var k=Object.keys(pts);
+        pinch={d:Math.hypot(pts[k[0]].clientX-pts[k[1]].clientX, pts[k[0]].clientY-pts[k[1]].clientY), s:s}; drag=null; }
+      else { drag={x:e.clientX,y:e.clientY,tx:tx,ty:ty}; canvas.style.cursor='grabbing'; } });
+    canvas.addEventListener('pointermove',function(e){ if(!pts[e.pointerId]) return; pts[e.pointerId]=e;
+      var k=Object.keys(pts);
+      if(k.length===2 && pinch){ var d=Math.hypot(pts[k[0]].clientX-pts[k[1]].clientX, pts[k[0]].clientY-pts[k[1]].clientY);
+        var mx=(pts[k[0]].clientX+pts[k[1]].clientX)/2, my=(pts[k[0]].clientY+pts[k[1]].clientY)/2;
+        zoomAt(mx,my,(d/pinch.d)/(s/pinch.s)); }
+      else if(drag){ tx=drag.tx+(e.clientX-drag.x); ty=drag.ty+(e.clientY-drag.y); apply(); } });
+    function up(e){ delete pts[e.pointerId]; if(Object.keys(pts).length<2) pinch=null; if(!drag) return;
+      drag=null; canvas.style.cursor='grab'; }
+    canvas.addEventListener('pointerup',up); canvas.addEventListener('pointercancel',up);
+    document.addEventListener('keydown',function(e){ if(wrap.hidden) return;
+      if(e.key==='Escape') hide(); else if(e.key==='+'||e.key==='=') center(1.25);
+      else if(e.key==='-'||e.key==='_') center(0.8); else if(e.key==='ArrowLeft') step(-1);
+      else if(e.key==='ArrowRight') step(1); else if(e.key==='0') fit(); else if(e.key==='1') one(); });
+    window.addEventListener('resize',function(){ if(!wrap.hidden) fit(); });
+    var b=document.createElement('button'); b.textContent='⛶ 全屏放大'; b.id='vFull';
+    var anchor=document.getElementById('vOpen'); anchor.parentNode.insertBefore(b, anchor.nextSibling);
+    b.onclick=show;
+  })();
+
+
+  function go(v){
+    document.querySelectorAll('nav button').forEach(function(x){x.classList.toggle('on',x.dataset.v===v)});
+    document.querySelectorAll('main section').forEach(function(x){x.classList.remove('on')});
+    var s=document.getElementById('v-'+v); if(s)s.classList.add('on'); stop();
+  }
+  document.querySelectorAll('nav button').forEach(function(b){ b.onclick=function(){ go(b.dataset.v); location.hash=b.dataset.v; }; });
+  var h=(location.hash||'').replace('#','');
+  if(['lib','how','play','cat','src'].indexOf(h)>=0) go(h);
+})();
+</script>
+</body>
+</html>
