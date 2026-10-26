@@ -17,5 +17,14 @@
    "songs-user/9002/2.webp"
   ],
   "added": "2026-10-24"
+ },
+ {
+  "no": 9990,
+  "title": "上传保真验证（矢量）",
+  "singer": "probe",
+  "pdf": "songs-user/9990/source.pdf",
+  "pdfPages": 2,
+  "pages": [],
+  "added": "2026-10-26"
  }
 ]
