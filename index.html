@@ -252,9 +252,9 @@
       <input type="file" id="mFile" accept=".pdf,image/*" multiple>
       <input type="text" id="mTitle" placeholder="曲名（留空则用文件名）" style="flex:1;min-width:160px">
       <input type="text" id="mSinger" placeholder="演唱/来源（可空）" style="width:150px">
-      <button id="mAdd" class="btn">转换并上传</button>
+      <button id="mAdd" class="btn">原样上传</button>
     </div>
-    <p class="muted">PDF 会在你浏览器里用 pdf.js 逐页渲染成 1650px 的 WebP 再上传；一次选多张图片会被当成同一首的连续几页。</p>
+    <p class="muted">PDF 和图片都<b>按原文件上传，不转码、不缩放、不压缩</b>：PDF 存成 <span class="kbd">songs-user/编号/source.pdf</span>，图片保留原格式和原尺寸（单个文件上限 20MB，实测 12MB 也没问题）。看谱时 pdf.js 按你屏幕的分辨率和当前放大倍数现页渲染，放大多少层都是重画一次，不是拉糊一张图。</p>
     <div id="mProg" class="mprog" hidden><div></div></div>
     <pre id="mLog" class="mlog"></pre>
   </div>
@@ -270,7 +270,7 @@
   </div>
 
   <p class="muted">提交成功后页面会提示；等一分钟左右刷新，新谱就会出现在「谱库」列表里（编号从 9001 起）。</p>
-</section></section></section>
+</section></section></section></section>
 </main>
 
 <footer>谱面渲染、级数和弦解析、试听引擎均为本页自建（除谱图与 data.js 外无外部依赖）。生成时间 2026-10-22。</footer>
@@ -452,16 +452,62 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   var sel=0,page=0,list=document.getElementById('libList');
   function paintList(){ var q=(document.getElementById('libq').value||'').trim().toLowerCase();
     list.innerHTML=''; LIB.forEach(function(x,i){ if(q&&(x.t+x.s).toLowerCase().indexOf(q)<0)return;
-      var li=document.createElement('li'); li.innerHTML='<span class="no">'+x.no+'</span><span>'+x.t.replace('（简和谱）','')+(x.hd&&x.hd.length?' <span class="tag loc">高清</span>':'')+(x.src&&x.src.indexOf('词曲')>=0?' <span class="tag">即兴版</span>':'')+'</span>';
+      var li=document.createElement('li'); li.innerHTML='<span class="no">'+x.no+'</span><span>'+x.t.replace('（简和谱）','')+(x.hd&&x.hd.length?' <span class="tag loc">高清</span>':'')+(x.src&&x.src.indexOf('词曲')>=0?' <span class="tag">即兴版</span>':'')+(x.pdf?' <span class="tag">原谱PDF</span>':'')+(x.src==='我上传的'&&!x.pdf?' <span class="tag">我传的</span>':'')+'</span>';
       if(i===sel)li.className='on'; li.onclick=function(){sel=i;page=0;paintList();paintOne();}; list.appendChild(li);
     });
   }
   var hdMode=false;
+
+  /* ===== 原谱 PDF：仓库里存的是你上传的那个文件本身，看的时候用 pdf.js 现页渲染，不转图不压缩 ===== */
+  var pdfDocs={};
+  function dpr(){ return Math.max(1, Math.min(3, window.devicePixelRatio||1)); }
+  function isPdfSrc(p){ return typeof p==='string' && p.indexOf('pdf:')===0; }
+  function loadPdfDoc(url){
+    if(pdfDocs[url]) return pdfDocs[url];
+    if(!window.__pdfjs) return Promise.reject(new Error('pdf.js 还没加载好，刷新一次再看'));
+    pdfDocs[url]=fetch(url,{cache:'default'}).then(function(r){
+      if(!r.ok) throw new Error('原谱 PDF 取不到（'+r.status+'）'); return r.arrayBuffer();
+    }).then(function(buf){ return window.__pdfjs.getDocument({data:buf}).promise; });
+    return pdfDocs[url];
+  }
+  /* 按 longEdge（长边像素）渲染第 idx 页，返回 objectURL；顺带把 PDF 原始点尺寸报出来 */
+  function renderPdfPage(url, idx, longEdge){
+    return loadPdfDoc(url).then(function(doc){ return doc.getPage(idx+1); }).then(function(pg){
+      var v0=pg.getViewport({scale:1}), edge=Math.max(v0.width,v0.height);
+      var k=Math.max(0.2, longEdge/edge), vp=pg.getViewport({scale:k});
+      var cv=document.createElement('canvas'); cv.width=Math.round(vp.width); cv.height=Math.round(vp.height);
+      var cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,cv.width,cv.height);
+      return pg.render({canvasContext:cx,viewport:vp}).promise.then(function(){
+        return new Promise(function(res,rej){
+          cv.toBlob(function(b){ if(!b) return rej(new Error('渲染输出失败'));
+            res({url:URL.createObjectURL(b), ptsEdge:edge, ar:cv.height/cv.width, px:Math.max(cv.width,cv.height), pages:doc.numPages});
+          },'image/png');
+        });
+      });
+    });
+  }
+  /* 同一个 img 元素上只有最后一次渲染算数，中途的丢弃 */
+  function mountPdf(img, url, idx, longEdge, keepGeom){
+    var t=(img._t||0)+1; img._t=t;
+    if(keepGeom) img._keep=true; else img._keep=false;
+    img._want=longEdge;
+    return renderPdfPage(url, idx, longEdge).then(function(r){
+      if(img._t!==t){ URL.revokeObjectURL(r.url); return; }
+      if(img._u) URL.revokeObjectURL(img._u);
+      img._u=r.url; img._pts=r.ptsEdge; img._ar=r.ar; img.src=r.url;
+    }).catch(function(e){ if(img._t===t) setNote('✗ '+e.message); });
+  }
+  function setNote(t){ var el=document.getElementById('vPage'); if(el) el.textContent=t; }
+  function clampEdge(x){ return Math.max(700, Math.min(6000, Math.round(x))); }
+
   function actPages(s){ return (hdMode&&s.hd&&s.hd.length)?s.hd:s.pages; }
   function paintOne(){ var s=LIB[sel]; if(!s)return;
     var ps=actPages(s); if(page>=ps.length)page=ps.length-1; if(page<0)page=0;
     document.getElementById('vTitle').textContent=s.no+' · '+s.t.replace('（简和谱）','')+'　'+(s.s||'')+'　'+(s.src||'中国曲谱网');
-    document.getElementById('vImg').src=ps[page];
+    var cur=ps[page], vImg=document.getElementById('vImg');
+    if(isPdfSrc(cur)){ paintPdf(s, page, vImg); }
+    else { vImg._t=(vImg._t||0)+1; if(vImg._u){ URL.revokeObjectURL(vImg._u); vImg._u=null; }
+      vImg._pts=null; vImg.style.width=(document.getElementById('vZoom').value||100)+'%'; vImg.src=cur; }
     var lb=(s.labels&&s.labels[page])?s.labels[page]:('第 '+(page+1)+' 页');
     document.getElementById('vPage').textContent='第 '+(page+1)+' / '+ps.length+' 页 · '+lb;
     document.getElementById('vMeta').textContent='词 '+(s.ly||'—')+' ／ 曲 '+(s.mu||'—');
@@ -469,11 +515,26 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     if(s.hd&&s.hd.length){ hb.style.display=''; hb.textContent=hdMode?('切回全页版（'+s.pages.length+' 页）'):('切到高清（'+s.hd.length+' 页）'); }
     else { hb.style.display='none'; hdMode=false; }
   }
+  function stageEdge(){ var st=document.getElementById('vStage'), z=+(document.getElementById('vZoom').value||100);
+    var w=(st&&st.clientWidth?st.clientWidth:900)*z/100; return clampEdge(w*dpr()); }
+  function paintPdf(s, idx, img){ var z=+(document.getElementById('vZoom').value||100);
+    img.style.width=z+'%'; mountPdf(img, s.pdf, idx, stageEdge(), true);
+    /* 上传时 pdf.js 没就绪会先记 1 页，这里按真实页数补回来 */
+    loadPdfDoc(s.pdf).then(function(doc){ var n=doc.numPages;
+      if(n && s.pdfPages!==n){ s.pdfPages=n;
+        s.pages=Array.apply(null,{length:n}).map(function(_,i){ return 'pdf:'+i; });
+        s.labels=s.pages.map(function(p,i){ return '原谱 PDF 第 '+(i+1)+' 页（未压缩）'; });
+        paintList(); if(LIB[sel]===s && page>=n) page=n-1; if(LIB[sel]===s) paintOne(); }
+    }).catch(function(){}); }
   document.getElementById('vHd').onclick=function(){ hdMode=!hdMode; page=0; paintOne(); };
   document.getElementById('vPrev').onclick=function(){ if(page>0){page--;paintOne();} };
   document.getElementById('vNext').onclick=function(){ if(page<LIB[sel].pages.length-1){page++;paintOne();} };
-  document.getElementById('vZoom').oninput=function(){ document.getElementById('vImg').style.width=this.value+'%'; };
-  document.getElementById('vOpen').onclick=function(){ window.open(actPages(LIB[sel])[page]); };
+  var _zTimer=null;
+  document.getElementById('vZoom').oninput=function(){ document.getElementById('vImg').style.width=this.value+'%';
+    var s=LIB[sel]; if(s&&s.pdf){ clearTimeout(_zTimer); _zTimer=setTimeout(function(){
+      mountPdf(document.getElementById('vImg'), s.pdf, page, stageEdge(), true); },260); } };
+  document.getElementById('vOpen').onclick=function(){ var s=LIB[sel], cur=actPages(s)[page];
+    if(isPdfSrc(cur)) window.open(s.pdf); else window.open(cur); };
   document.getElementById('libq').addEventListener('input',paintList);
   paintList(); paintOne();
   window.__jh={ set:function(a){ LIB=a.slice(); sel=0; page=0; paintList(); paintOne(); }, get:function(){ return LIB; } };
@@ -490,23 +551,43 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     var canvas=wrap.querySelector('.fsx-canvas'), img=wrap.querySelector('.fsx-canvas img'),
         info=wrap.querySelector('.fsx-info'), s=1, tx=0, ty=0, drag=null, pts={}, pinch=null;
     function box(){ return canvas.getBoundingClientRect(); }
-    function apply(){ img.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';
-      info.textContent=Math.round(s*100)+'%'+(img.naturalWidth?(' · 原图 '+img.naturalWidth+'×'+img.naturalHeight):''); }
-    function fit(){ var r=box(); if(!img.naturalWidth) return;
-      s=Math.min(r.width/img.naturalWidth, r.height/img.naturalHeight);
-      tx=(r.width-img.naturalWidth*s)/2; ty=(r.height-img.naturalHeight*s)/2; apply(); }
-    function one(){ var r=box(); s=1; tx=(r.width-img.naturalWidth)/2; ty=Math.max(0,(r.height-img.naturalHeight)/2); apply(); }
+    function isPdf(){ var ps=actPages(LIB[sel]); return isPdfSrc(ps[page]); }
+    /* PDF 模式下用「点」当参考尺寸：s=1 就是 1 磅 = 1 CSS 像素，跟原大对齐 */
+    function geom(){ if(img._pts && isPdf()){ var p=img._pts, a=img._ar||1;
+        return a>=1 ? {W:p/a, H:p} : {W:p, H:p*a}; }
+      return {W:img.naturalWidth, H:img.naturalHeight}; }
+    var _hiTimer=null;
+    function wantEdge(){ var g=geom(), r=box(); return clampEdge(Math.max(g.W,g.H)*s*dpr()); }
+    function scheduleHi(){ if(!isPdf() || !img._pts) return;
+      clearTimeout(_hiTimer); _hiTimer=setTimeout(function(){
+        var want=wantEdge(); if(!img._want || Math.abs(want-img._want)/img._want > 0.12)
+          mountPdf(img, LIB[sel].pdf, page, want, true); }, 240); }
+    function apply(){ var g=geom();
+      if(isPdf() && img._pts){ img.style.width=Math.round(g.W*s)+'px'; img.style.height='auto';
+        img.style.transform='translate('+tx+'px,'+ty+'px)'; }
+      else { img.style.width=''; img.style.height=''; img.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')'; }
+      info.textContent=Math.round(s*100)+'%'+(isPdf()&&img._pts
+        ? (' · 显示 '+Math.round(g.W*s)+'×'+Math.round(g.H*s)+'，本页现渲 '+Math.max(img.naturalWidth,img.naturalHeight)+'px')
+        : (g.W?(' · 原图 '+g.W+'×'+g.H):''));
+      scheduleHi(); }
+    function fit(){ var r=box(), g=geom(); if(!g.W) return;
+      s=Math.min(r.width/g.W, r.height/g.H);
+      tx=(r.width-g.W*s)/2; ty=(r.height-g.H*s)/2; apply(); }
+    function one(){ var r=box(), g=geom(); s=1; tx=(r.width-g.W)/2; ty=Math.max(0,(r.height-g.H)/2); apply(); }
     function zoomAt(cx,cy,k){ var r=box(), px=cx-r.left, py=cy-r.top, ns=Math.min(10,Math.max(0.15,s*k));
       tx-=(px-tx)*(ns/s-1); ty-=(py-ty)*(ns/s-1); s=ns; apply(); }
     function center(k){ var r=box(); zoomAt(r.left+r.width/2, r.top+r.height/2, k); }
     function step(d){ var ps=actPages(LIB[sel]), np=page+d; if(np<0||np>=ps.length) return;
-      page=np; paintOne(); img.src=ps[page]; }
+      page=np; paintOne(); loadFs(); }
+    function loadFs(){ var ps=actPages(LIB[sel]);
+      if(isPdfSrc(ps[page])) mountPdf(img, LIB[sel].pdf, page, img._pts?wantEdge():clampEdge(Math.max(box().width,box().height)*dpr()), false);
+      else img.src=ps[page]; }
     function show(){ var ps=actPages(LIB[sel]); if(!ps.length) return;
-      img.src=ps[page]; wrap.hidden=false; document.body.style.overflow='hidden';
+      wrap.hidden=false; document.body.style.overflow='hidden'; img._t=(img._t||0)+1; img._pts=null; loadFs();
       if(canvas.requestFullscreen && !document.fullscreenElement) canvas.requestFullscreen().catch(function(){}); }
     function hide(){ wrap.hidden=true; document.body.style.overflow='';
       if(document.fullscreenElement) document.exitFullscreen().catch(function(){}); }
-    img.addEventListener('load',fit);
+    img.addEventListener('load',function(){ if(img._keep){ img._keep=false; apply(); } else fit(); });
     wrap.querySelector('.fsx-bar').addEventListener('click',function(e){
       var a=e.target.getAttribute('data-a'); if(!a) return;
       if(a==='close') hide(); else if(a==='in') center(1.25); else if(a==='out') center(0.8);
@@ -634,8 +715,16 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   function rebuild(){
     var list=baseLib.filter(function(x){ return HIDDEN.indexOf(x.no)<0; });
     USER.forEach(function(u){
-      list.push({no:u.no, id:'我加的', t:u.title, s:u.singer||'—', ly:'—', mu:'—',
-                 pages:u.pages, labels:u.pages.map(function(p,i){ return '第 '+(i+1)+' 页'; }), src:'我上传的'});
+      var row={no:u.no, id:'我加的', t:u.title, s:u.singer||'—', ly:'—', mu:'—', src:'我上传的'};
+      if(u.pdf){
+        var n=u.pdfPages||u.pages&&u.pages.length&&1||1;
+        row.pdf=u.pdf; row.pdfPages=n;
+        row.pages=(u.pages&&u.pages.length)?u.pages.slice():Array.apply(null,{length:n}).map(function(_,i){ return 'pdf:'+i; });
+        row.labels=row.pages.map(function(p,i){ return p.indexOf('pdf:')===0?('原谱 PDF 第 '+(i+1)+' 页（未压缩）'):('第 '+(i+1)+' 页'); });
+      } else {
+        row.pages=u.pages; row.labels=u.pages.map(function(p,i){ return '第 '+(i+1)+' 页'; });
+      }
+      list.push(row);
     });
     list.sort(function(a,b){ return a.no-b.no; });
     if(window.__jh) window.__jh.set(list);
@@ -664,51 +753,25 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     });
   }
 
-  /* ---- 上传 ---- */
+  /* ---- 上传：原样存文件，不转码不压缩 ---- */
   function nextUserNo(){ var m=9000; USER.forEach(function(u){ m=Math.max(m,u.no); }); return m+1; }
-
-  function renderPdfToWebps(file){
-    if(!window.__pdfjs) return Promise.reject(new Error('pdf.js 未加载，请用线上地址打开'));
-    return file.arrayBuffer().then(function(buf){
-      return window.__pdfjs.getDocument({data:buf}).promise;
-    }).then(function(doc){
-      var out=[], chain=Promise.resolve();
-      for(var i=1;i<=doc.numPages;i++){(function(n){
-        chain=chain.then(function(){
-          prog(n-1, doc.numPages, '渲染第 '+(n-1)+'/'+doc.numPages+' 页');
-          return doc.getPage(n).then(function(pg){
-            var vp0=pg.getViewport({scale:1});
-            var scale=1650/Math.max(vp0.width,vp0.height);
-            var vp=pg.getViewport({scale:scale});
-            var cv=document.createElement('canvas'); cv.width=Math.round(vp.width); cv.height=Math.round(vp.height);
-            var cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,cv.width,cv.height);
-            return pg.render({canvasContext:cx,viewport:vp}).promise.then(function(){
-              return new Promise(function(res,rej){
-                cv.toBlob(function(b){ if(!b) return rej(new Error('WebP 编码失败'));
-                  b.arrayBuffer().then(function(ab){ out.push(new Uint8Array(ab)); res(); }); }, 'image/webp', 0.82);
-              });
-            });
-          });
-        });
-      })(i);}
-      return chain.then(function(){ return out; });
-    });
+  var MAX_BYTES=20*1024*1024;
+  function readBytes(file){ return file.arrayBuffer().then(function(b){
+    if(!b.byteLength) throw new Error(file.name+' 是空的');
+    if(b.byteLength>MAX_BYTES) throw new Error(file.name+' 有 '+(b.byteLength/1048576).toFixed(1)+'MB，超过 20MB，先把它拆开或压一下');
+    return new Uint8Array(b); }); }
+  function extOf(name){ var m=/\.([A-Za-z0-9]{1,5})$/.exec(name||''); var e=(m?m[1]:'bin').toLowerCase();
+    return ({pdf:'pdf',png:'png',jpg:'jpg',jpeg:'jpg',webp:'webp',gif:'gif',bmp:'bmp'})[e] || 'bin'; }
+  function pdfPageCount(bytes){
+    if(!window.__pdfjs) return Promise.resolve(0);
+    return window.__pdfjs.getDocument({data:bytes.slice(0)}).promise.then(function(doc){
+      var n=doc.numPages; doc.destroy&&doc.destroy(); return n;
+    }).catch(function(){ return 0; });
   }
-
-  function imageToWebp(file){
-    return new Promise(function(res,rej){
-      var url=URL.createObjectURL(file), im=new Image();
-      im.onload=function(){
-        var scale=Math.min(1, 1650/Math.max(im.naturalWidth,im.naturalHeight));
-        var cv=document.createElement('canvas'); cv.width=Math.round(im.naturalWidth*scale); cv.height=Math.round(im.naturalHeight*scale);
-        var cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,cv.width,cv.height);
-        cx.drawImage(im,0,0,cv.width,cv.height); URL.revokeObjectURL(url);
-        cv.toBlob(function(b){ if(!b) return rej(new Error('编码失败'));
-          b.arrayBuffer().then(function(ab){ res(new Uint8Array(ab)); }); },'image/webp',0.82);
-      };
-      im.onerror=function(){ URL.revokeObjectURL(url); rej(new Error('图片读不了：'+file.name)); };
-      im.src=url;
-    });
+  function putFile(path, bytes, msg){
+    return api(path,{method:'PUT',body:JSON.stringify({message:msg,content:b64(bytes)})})
+      .then(function(res){ if(res.status===422 && /already exists/i.test((res.json&&res.json.message)||'')) return res;
+        if(!res.ok) throw new Error(path+' 上传失败 '+res.status+' '+(res.json&&res.json.message)); return res; });
   }
 
   function doAdd(){
@@ -721,31 +784,41 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     var singer=($('#mSinger').value||'').trim() || '本地上传';
     var isPdf = /\.pdf$/i.test(first.name) || first.type==='application/pdf';
     var no=nextUserNo();
-    log('→ 开始：《'+title+'》 编号 '+no+'（'+(isPdf?'PDF '+files[0].name:'图片 '+files.length+' 张')+'）');
+    log('→ 开始：《'+title+'》 编号 '+no+'（'+(isPdf?'PDF '+files[0].name:'图片 '+files.length+' 张')+'，原样上传，不压缩）');
 
-    var prep = isPdf ? renderPdfToWebps(first) : Promise.all(files.map(imageToWebp));
-    prep.then(function(pages){
-      if(!pages.length) throw new Error('没渲染出任何页');
-      log('  渲染完成，共 '+pages.length+' 页，开始上传');
-      var chain=Promise.resolve(), paths=[];
-      pages.forEach(function(bytes,i){
-        var path='songs-user/'+no+'/'+(i+1)+'.webp';
-        chain=chain.then(function(){
-          prog(i, pages.length, '上传第 '+(i+1)+'/'+pages.length+' 页');
-          return api(path,{method:'PUT',body:JSON.stringify({message:'加谱 '+title+' 第'+(i+1)+'页',content:b64(bytes)})})
-            .then(function(res){ if(!res.ok && res.status!==422) throw new Error('上传失败 '+res.status+' '+(res.json&&res.json.message));
-              paths.push('songs-user/'+no+'/'+(i+1)+'.webp'); });
+    var work;
+    if(isPdf){
+      if(files.length>1) log('  注意：一次只收第一个 PDF，你选了 '+files.length+' 个，其余忽略');
+      work = readBytes(first).then(function(bytes){
+        var path='songs-user/'+no+'/source.pdf';
+        return pdfPageCount(bytes).then(function(n){
+          if(!n) log('  页数读不出来（pdf.js 没就绪），曲库会等你打开时再算');
+          prog(1,1,'上传原谱 PDF');
+          return putFile(path, bytes, '加谱 '+title+' 原谱PDF').then(function(){ return {pdf:path, np:n, kb:Math.round(bytes.length/1024)}; });
         });
       });
-      return chain.then(function(){ return {paths:paths,count:pages.length}; });
-    }).then(function(r){
+    } else {
+      var chain=Promise.resolve(), paths=[];
+      work = files.reduce(function(p,f,i){ return p.then(function(){
+        prog(i, files.length, '上传第 '+(i+1)+'/'+files.length+' 张');
+        return readBytes(f).then(function(bytes){ var path='songs-user/'+no+'/'+(i+1)+'.'+extOf(f.name);
+          return putFile(path, bytes, '加谱 '+title+' 第'+(i+1)+'页').then(function(){ paths.push(path); }); });
+      }); }, chain).then(function(){ return {pages:paths}; });
+    }
+
+    work.then(function(r){
+      var entry={no:no,title:title,singer:singer,added:new Date().toISOString().slice(0,10)};
+      var count;
+      if(r.pdf){ entry.pdf=r.pdf; entry.pdfPages=r.np||1; entry.pages=[]; count=(r.np||1)+' 页 / 原谱 '+(r.kb||0)+'KB'; }
+      else { entry.pages=r.pages; count=r.pages.length+' 张'; }
+      if(!r.pages && !r.pdf) throw new Error('什么都没传上去');
       return readJson('site-data/user.json').then(function(cur){
         var list=(cur&&cur.data)||[];
-        list.push({no:no,title:title,singer:singer,pages:r.paths,added:new Date().toISOString().slice(0,10)});
-        return writeJson('site-data/user.json', list, '加谱：'+title+'（'+r.count+' 页）', cur&&cur.sha)
+        list.push(entry);
+        return writeJson('site-data/user.json', list, '加谱：'+title+'（'+count+'，未压缩）', cur&&cur.sha)
           .then(function(res){ if(!res.ok) throw new Error('写 user.json 失败 '+res.status+' '+(res.json&&res.json.message));
             USER=list; rebuild(); renderDel(); prog(0,0);
-            log('✓ 已提交：《'+title+'》 '+r.count+' 页。约一分钟后刷新，就能在谱库里看到。'); });
+            log('✓ 已提交：《'+title+'》 '+count+'。约一分钟后刷新，就能在谱库里看到。'); });
       });
     }).catch(function(e){ prog(0,0); log('✗ 失败：'+e.message); });
   }
@@ -758,9 +831,11 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     var rows='';
     USER.forEach(function(u){
       if(q && u.title.toLowerCase().indexOf(q)<0) return;
+      var what = u.pdf ? ('原谱 PDF'+(u.pdfPages?(' · '+u.pdfPages+' 页'):''))
+                       : (u.pages.length+' 张图');
       rows+='<div class="mitem"><span class="mi-no">'+u.no+'</span><span class="mi-t">'+esc(u.title)+'</span>'
-        +'<span class="muted">'+u.pages.length+' 页 · 我上传的</span>'
-        +'<button class="btn danger" data-del="'+u.no+'">删除（含图片）</button></div>';
+        +'<span class="muted">'+what+' · 我上传的</span>'
+        +'<button class="btn danger" data-del="'+u.no+'">删除（连原文件）</button></div>';
     });
     baseLib.forEach(function(x){
       var hid=HIDDEN.indexOf(x.no)>=0;
@@ -777,13 +852,14 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     if(!gate()) return;
     var u=USER.filter(function(x){ return x.no===no; })[0]; if(!u) return;
     if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
-    if(!confirm('确定删除《'+u.title+'》及其 '+u.pages.length+' 张图片？')) return;
-    log('→ 删除《'+u.title+'》');
+    var files=(u.pages||[]).slice(); if(u.pdf) files.push(u.pdf);
+    if(!confirm('确定删除《'+u.title+'》和仓库里的 '+files.length+' 个文件？')) return;
+    log('→ 删除《'+u.title+'》（'+files.length+' 个文件）');
     var chain=Promise.resolve();
-    u.pages.forEach(function(p,i){
+    files.forEach(function(p,i){
       chain=chain.then(function(){
         return api(p).then(function(res){ if(!res.ok) return null;
-          prog(i,u.pages.length,'删图 '+(i+1)); return delFile(p,res.json.sha,'删谱图片 '+u.title); });
+          prog(i,files.length,'删文件 '+(i+1)); return delFile(p,res.json.sha,'删谱文件 '+u.title); });
       });
     });
     chain.then(function(){
