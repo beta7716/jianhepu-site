@@ -498,7 +498,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     }).catch(function(e){ if(img._t===t) setNote('✗ '+e.message); });
   }
   function setNote(t){ var el=document.getElementById('vPage'); if(el) el.textContent=t; }
-  function clampEdge(x){ return Math.max(700, Math.min(6000, Math.round(x))); }
+  function clampEdge(x){ return Math.max(700, Math.min(4500, Math.round(x))); }
 
   function actPages(s){ return (hdMode&&s.hd&&s.hd.length)?s.hd:s.pages; }
   function paintOne(){ var s=LIB[sel]; if(!s)return;
