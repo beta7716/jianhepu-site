@@ -249,12 +249,13 @@
   <div class="card">
     <b>2｜添加曲谱</b>
     <div class="mrow" style="margin-top:8px">
-      <input type="file" id="mFile" accept=".pdf,image/*" multiple>
+      <input type="file" id="mFile" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp" multiple>
       <input type="text" id="mTitle" placeholder="曲名（留空则用文件名）" style="flex:1;min-width:160px">
       <input type="text" id="mSinger" placeholder="演唱/来源（可空）" style="width:150px">
       <button id="mAdd" class="btn">原样上传</button>
     </div>
-    <p class="muted">PDF 和图片都<b>按原文件上传，不转码、不缩放、不压缩</b>：PDF 存成 <span class="kbd">songs-user/编号/source.pdf</span>，图片保留原格式和原尺寸（单个文件上限 20MB，实测 12MB 也没问题）。看谱时 pdf.js 按你屏幕的分辨率和当前放大倍数现页渲染，放大多少层都是重画一次，不是拉糊一张图。</p>
+    <p class="muted">多个 PDF 分别成谱，以各自文件名为曲名，共用演唱/来源；多张图片合成一首，按选择顺序排列。PDF 和图片不能混选。单个 PDF 或一组图片可填写曲名。</p>
+    <p class="muted">PDF 和图片都<b>按原文件上传，不转码、不缩放、不压缩</b>：PDF 存在 <span class="kbd">songs-user/编号/</span> 下，图片保留原格式和原尺寸，单个文件上限 20MB。失败时已上传的文件不会自动删除，请按日志检查仓库。</p>
     <div id="mProg" class="mprog" hidden><div></div></div>
     <pre id="mLog" class="mlog"></pre>
   </div>
@@ -472,7 +473,8 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   }
   /* 按 longEdge（长边像素）渲染第 idx 页，返回 objectURL；顺带把 PDF 原始点尺寸报出来 */
   function renderPdfPage(url, idx, longEdge){
-    return loadPdfDoc(url).then(function(doc){ return doc.getPage(idx+1); }).then(function(pg){
+    var pages;
+    return loadPdfDoc(url).then(function(doc){ pages=doc.numPages; return doc.getPage(idx+1); }).then(function(pg){
       var v0=pg.getViewport({scale:1}), edge=Math.max(v0.width,v0.height);
       var k=Math.max(0.2, longEdge/edge), vp=pg.getViewport({scale:k});
       var cv=document.createElement('canvas'); cv.width=Math.round(vp.width); cv.height=Math.round(vp.height);
@@ -480,7 +482,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
       return pg.render({canvasContext:cx,viewport:vp}).promise.then(function(){
         return new Promise(function(res,rej){
           cv.toBlob(function(b){ if(!b) return rej(new Error('渲染输出失败'));
-            res({url:URL.createObjectURL(b), ptsEdge:edge, ar:cv.height/cv.width, px:Math.max(cv.width,cv.height), pages:doc.numPages});
+            res({url:URL.createObjectURL(b), ptsEdge:edge, ar:cv.height/cv.width, px:Math.max(cv.width,cv.height), pages:pages});
           },'image/png');
         });
       });
@@ -692,7 +694,13 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     return Object.assign(h, extra||{}); }
   function jfetch(url,opt){ return fetch(url,opt).then(function(r){ return r.text().then(function(x){
     var j=null; try{ j=JSON.parse(x); }catch(e){} return {ok:r.ok,status:r.status,json:j,text:x}; }); }); }
-  function api(path,opt){ return jfetch(APIU+encodeURIComponent(path).replace(/%2F/g,'/'), Object.assign({headers:hdr()},opt||{})); }
+  function api(path,opt){ return jfetch(APIU+encodeURIComponent(path).replace(/%2F/g,'/'), Object.assign({headers:hdr()},opt||{})).then(function(res){
+    if(opt && (opt.method==='PUT' || opt.method==='DELETE') && res.status>=500) throw new Error('服务器返回 '+res.status);
+    return res;
+  }).catch(function(e){
+    if(opt && (opt.method==='PUT' || opt.method==='DELETE')) throw new Error('网络结果不确定，操作可能已成功，请检查路径 '+path+'：'+e.message);
+    throw e;
+  }); }
 
   function readJson(path){
     return api(path).then(function(res){
@@ -770,57 +778,75 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   }
   function putFile(path, bytes, msg){
     return api(path,{method:'PUT',body:JSON.stringify({message:msg,content:b64(bytes)})})
-      .then(function(res){ if(res.status===422 && /already exists/i.test((res.json&&res.json.message)||'')) return res;
-        if(!res.ok) throw new Error(path+' 上传失败 '+res.status+' '+(res.json&&res.json.message)); return res; });
+      .then(function(res){
+        if(!res.ok) throw new Error(path+' 上传失败 '+res.status+' '+((res.json&&res.json.message)||'')); return res; });
   }
 
+  /* 只有明确的 404 才允许创建；读取或解析失败不能当空列表写回。 */
+  function latestUsers(){
+    return api('site-data/user.json').then(function(res){
+      if(res.status===404) return {sha:null,data:[]};
+      if(!res.ok) throw new Error('读取 user.json 失败 '+res.status);
+      try {
+        var data=JSON.parse(new TextDecoder().decode(unb64(res.json.content)));
+        if(!Array.isArray(data) || !res.json.sha) throw new Error('格式或 SHA 无效');
+        return {sha:res.json.sha,data:data};
+      } catch(e){ throw new Error('解析 user.json 失败：'+e.message); }
+    });
+  }
+  function saveEntry(entry, tries){
+    return latestUsers().then(function(cur){
+      if(cur.data.some(function(u){ return u.no===entry.no; })) throw new Error('编号 '+entry.no+' 已被占用，未写入曲库');
+      var list=cur.data.concat([entry]);
+      return writeJson('site-data/user.json',list,'加谱：'+entry.title+'（未压缩）',cur.sha).then(function(res){
+        if((res.status===409 || res.status===422) && tries>0) return saveEntry(entry,tries-1);
+        if(!res.ok) throw new Error('写 user.json 失败 '+res.status+' '+((res.json&&res.json.message)||''));
+        USER=list; rebuild(); renderDel();
+      });
+    });
+  }
+  var adding=false;
   function doAdd(){
-    if(!gate()) return;
+    if(adding || !gate()) return;
     var files=Array.prototype.slice.call($('#mFile').files||[]);
     if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
     if(!files.length) return log('✗ 先选 PDF 或图片');
-    var first=files[0];
-    var title=($('#mTitle').value||'').trim() || first.name.replace(/\.[^.]+$/,'');
+    function isPdf(f){ return /\.pdf$/i.test(f.name) || f.type==='application/pdf'; }
+    function isImage(f){ return /\.(png|jpe?g|webp|gif|bmp)$/i.test(f.name) && (!f.type || /^image\/(png|jpeg|webp|gif|bmp)$/i.test(f.type)); }
+    var pdf=files.every(isPdf), images=files.every(function(f){ return !isPdf(f) && isImage(f); });
+    if(!pdf && !images) return log('✗ 请分别选择 PDF 或图片，不能混选或上传其他文件');
     var singer=($('#mSinger').value||'').trim() || '本地上传';
-    var isPdf = /\.pdf$/i.test(first.name) || first.type==='application/pdf';
-    var no=nextUserNo();
-    log('→ 开始：《'+title+'》 编号 '+no+'（'+(isPdf?'PDF '+files[0].name:'图片 '+files.length+' 张')+'，原样上传，不压缩）');
-
-    var work;
-    if(isPdf){
-      if(files.length>1) log('  注意：一次只收第一个 PDF，你选了 '+files.length+' 个，其余忽略');
-      work = readBytes(first).then(function(bytes){
-        var path='songs-user/'+no+'/source.pdf';
-        return pdfPageCount(bytes).then(function(n){
-          if(!n) log('  页数读不出来（pdf.js 没就绪），曲库会等你打开时再算');
-          prog(1,1,'上传原谱 PDF');
-          return putFile(path, bytes, '加谱 '+title+' 原谱PDF').then(function(){ return {pdf:path, np:n, kb:Math.round(bytes.length/1024)}; });
-        });
+    var custom=($('#mTitle').value||'').trim(), groups=pdf?files.map(function(f){return [f];}):[files];
+    var next=9001, btn=$('#mAdd'); adding=true; if(btn) btn.disabled=true;
+    return groups.reduce(function(chain,group,index){ return chain.then(function(){
+      var title=(pdf && files.length>1 ? '' : custom) || group[0].name.replace(/\.[^.]+$/,'');
+      var no, dir, paths=[], attempted=[];
+      return latestUsers().then(function(cur){
+        no=cur.data.reduce(function(m,u){ return Math.max(m,Number(u.no)||0); },next-1)+1; next=no+1;
+        var random=new Uint8Array(16); window.crypto.getRandomValues(random);
+        dir='songs-user/'+no+'/'+Array.prototype.map.call(random,function(x){ return ('0'+x.toString(16)).slice(-2); }).join('');
+        log('→ 开始：《'+title+'》 编号 '+no+'（原样上传，不压缩）');
+        return group.reduce(function(p,f,i){ return p.then(function(){
+          prog(index,groups.length,'处理 '+title+' '+(i+1)+'/'+group.length);
+          return readBytes(f).then(function(bytes){
+            var path=dir+'/'+(pdf?'source.pdf':(i+1)+'.'+extOf(f.name));
+            return (pdf?pdfPageCount(bytes):Promise.resolve(0)).then(function(n){
+              if(pdf && !n) log('⚠ PDF 页数解析失败，暂按 1 页显示，请检查：'+path);
+              attempted.push(path);
+              return putFile(path,bytes,'加谱 '+title).then(function(){ paths.push(path); return n; });
+            }).then(function(n){ if(pdf) return n; });
+          }).then(function(n){ if(pdf) group.pdfPages=n||1; });
+        }); },Promise.resolve());
+      }).then(function(){
+        var entry={no:no,title:title,singer:singer,added:new Date().toISOString().slice(0,10)};
+        if(pdf){ entry.pdf=paths[0]; entry.pdfPages=group.pdfPages; entry.pages=[]; } else entry.pages=paths;
+        return saveEntry(entry,3);
+      }).then(function(){ log('✓ 已提交：《'+title+'》'); }).catch(function(e){
+        log('✗ 失败：《'+title+'》 '+e.message+(attempted.length?'；尝试上传的文件可能残留，请检查仓库：'+attempted.join('、'):''));
       });
-    } else {
-      var chain=Promise.resolve(), paths=[];
-      work = files.reduce(function(p,f,i){ return p.then(function(){
-        prog(i, files.length, '上传第 '+(i+1)+'/'+files.length+' 张');
-        return readBytes(f).then(function(bytes){ var path='songs-user/'+no+'/'+(i+1)+'.'+extOf(f.name);
-          return putFile(path, bytes, '加谱 '+title+' 第'+(i+1)+'页').then(function(){ paths.push(path); }); });
-      }); }, chain).then(function(){ return {pages:paths}; });
-    }
-
-    work.then(function(r){
-      var entry={no:no,title:title,singer:singer,added:new Date().toISOString().slice(0,10)};
-      var count;
-      if(r.pdf){ entry.pdf=r.pdf; entry.pdfPages=r.np||1; entry.pages=[]; count=(r.np||1)+' 页 / 原谱 '+(r.kb||0)+'KB'; }
-      else { entry.pages=r.pages; count=r.pages.length+' 张'; }
-      if(!r.pages && !r.pdf) throw new Error('什么都没传上去');
-      return readJson('site-data/user.json').then(function(cur){
-        var list=(cur&&cur.data)||[];
-        list.push(entry);
-        return writeJson('site-data/user.json', list, '加谱：'+title+'（'+count+'，未压缩）', cur&&cur.sha)
-          .then(function(res){ if(!res.ok) throw new Error('写 user.json 失败 '+res.status+' '+(res.json&&res.json.message));
-            USER=list; rebuild(); renderDel(); prog(0,0);
-            log('✓ 已提交：《'+title+'》 '+count+'。约一分钟后刷新，就能在谱库里看到。'); });
-      });
-    }).catch(function(e){ prog(0,0); log('✗ 失败：'+e.message); });
+    }); },Promise.resolve()).then(function(){ adding=false; if(btn) btn.disabled=false; prog(0,0); },function(e){
+      adding=false; if(btn) btn.disabled=false; prog(0,0); log('✗ 批量上传失败：'+e.message);
+    });
   }
 
   /* ---- 删除 / 隐藏 ---- */
@@ -853,25 +879,33 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     var u=USER.filter(function(x){ return x.no===no; })[0]; if(!u) return;
     if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
     var files=(u.pages||[]).slice(); if(u.pdf) files.push(u.pdf);
-    if(!confirm('确定删除《'+u.title+'》和仓库里的 '+files.length+' 个文件？')) return;
+    if(!confirm('确定删除《'+u.title+'》和仓库里的 '+files.length+' 个文件？删除中途失败时，曲目可能保留但缺少部分页面。')) return;
     log('→ 删除《'+u.title+'》（'+files.length+' 个文件）');
-    var chain=Promise.resolve();
-    files.forEach(function(p,i){
-      chain=chain.then(function(){
-        return api(p).then(function(res){ if(!res.ok) return null;
-          prog(i,files.length,'删文件 '+(i+1)); return delFile(p,res.json.sha,'删谱文件 '+u.title); });
-      });
-    });
-    chain.then(function(){
-      var list=USER.filter(function(x){ return x.no!==no; });
-      return readJson('site-data/user.json').then(function(cur){
-        return writeJson('site-data/user.json', list, '删谱：'+u.title, cur&&cur.sha).then(function(res){
+    function removeEntry(tries){
+      return latestUsers().then(function(cur){
+        var current=cur.data.filter(function(x){ return x.no===no; })[0];
+        if(!current || JSON.stringify(current)!==JSON.stringify(u)) throw new Error('远端曲目已变化或不存在，停止删除');
+        var list=cur.data.filter(function(x){ return x.no!==no; });
+        return writeJson('site-data/user.json',list,'删谱：'+u.title,cur.sha).then(function(res){
+          if((res.status===409 || res.status===422) && tries>0) return removeEntry(tries-1);
           if(!res.ok) throw new Error('写 user.json 失败 '+res.status);
-          USER=list; rebuild(); renderDel(); prog(0,0);
-          log('✓ 已删除《'+u.title+'》。约一分钟后刷新生效。');
+          USER=list; rebuild(); renderDel();
         });
       });
-    }).catch(function(e){ prog(0,0); log('✗ 删除失败：'+e.message); });
+    }
+    return latestUsers().then(function(cur){
+      var current=cur.data.filter(function(x){ return x.no===no; })[0];
+      if(!current || JSON.stringify(current)!==JSON.stringify(u)) throw new Error('远端曲目已变化或不存在，停止删除');
+      return files.reduce(function(chain,p,i){ return chain.then(function(){
+        return api(p).then(function(res){
+          if(res.status===404) return;
+          if(!res.ok || !res.json || !res.json.sha) throw new Error('读取文件失败 '+p+' '+res.status);
+          prog(i,files.length,'删文件 '+(i+1));
+          return delFile(p,res.json.sha,'删谱文件 '+u.title).then(function(r){ if(!r.ok) throw new Error('删除文件失败 '+p+' '+r.status); });
+        });
+      }); },Promise.resolve());
+    }).then(function(){ return removeEntry(3); }).then(function(){ prog(0,0); log('✓ 已删除《'+u.title+'》。约一分钟后刷新生效。');
+    }).catch(function(e){ prog(0,0); log('✗ 删除失败：'+e.message+(files.length?'；曲目可能保留但缺少部分页面，也可能残留文件，请检查：'+files.join('、'):'')); });
   }
 
   function doHide(no, on){
