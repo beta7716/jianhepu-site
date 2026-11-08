@@ -151,6 +151,11 @@
   .search-feature svg{width:24px;height:24px;flex:none}
   .search-feature input{width:100%;min-width:0;min-height:68px;border:0;outline:0;background:transparent;color:var(--ink);font:inherit;font-size:18px}
   .search-feature:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(114,84,199,.17),0 12px 38px rgba(51,35,76,.08)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;max-width:780px;margin:12px 0 0}
+  .chips:empty{display:none}
+  .chips button{min-width:40px;padding:8px 14px;border:1px solid #ddd5ed;border-radius:12px;background:#fff;color:var(--accent);font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+  .chips button:hover{border-color:var(--accent);background:#f4f1fb}
+  .chips button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
   .libside,.viewer,.card{border:1px solid rgba(72,54,98,.07);border-radius:22px;box-shadow:0 12px 38px rgba(51,35,76,.04)}
   .libside{padding:16px;max-height:75vh}
   .libside input{padding:13px 15px;border-radius:13px}
@@ -182,11 +187,12 @@
 <main>
 <!-- ============ 谱库 ============ -->
 <section id="v-lib" class="on">
-  <h2>曲谱收藏</h2>
+  <h2>曲谱搜索</h2>
   <label class="search-feature">
     <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m16 16 4 4"></path></svg>
     <input type="search" id="libq" aria-label="搜索歌名或演唱" placeholder="搜索歌名或演唱">
   </label>
+  <div id="libChips" class="chips" role="group" aria-label="按首字母快捷搜索"></div>
   <div class="lib">
     <div class="libside">
       <ul id="libList"></ul>
@@ -412,6 +418,22 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     list.innerHTML=''; LIB.forEach(function(x,i){ if(q&&(x.t+x.s).toLowerCase().indexOf(q)<0)return;
       var li=document.createElement('li'); li.innerHTML='<span class="no">'+x.no+'</span><span>'+x.t.replace('（简和谱）','')+(x.hd&&x.hd.length?' <span class="tag loc">高清</span>':'')+(x.src&&x.src.indexOf('词曲')>=0?' <span class="tag">即兴版</span>':'')+(x.pdf?' <span class="tag">原谱PDF</span>':'')+(x.src==='我上传的'&&!x.pdf?' <span class="tag">我传的</span>':'')+'</span>';
       if(i===sel)li.className='on'; li.onclick=function(){sel=i;page=0;paintList();paintOne();}; list.appendChild(li);
+    });
+    renderChips();
+  }
+  function initialOf(t){ var c=(t||'').trim().charAt(0); return /[A-Za-z]/.test(c)?c.toUpperCase():null; }
+  function renderChips(){
+    var box=document.getElementById('libChips'); if(!box)return;
+    var seen={}, letters=[];
+    LIB.forEach(function(x){ var L=initialOf(x.t); if(L&&!seen[L]){seen[L]=1;letters.push(L);} });
+    letters.sort();
+    var q=(document.getElementById('libq').value||'').trim().toUpperCase();
+    box.innerHTML='';
+    letters.forEach(function(L){
+      var b=document.createElement('button'); b.type='button'; b.textContent=L;
+      if(q===L)b.className='on';
+      b.onclick=function(){ document.getElementById('libq').value=L; paintList(); };
+      box.appendChild(b);
     });
   }
   var hdMode=false;
