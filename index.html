@@ -176,7 +176,7 @@
 
 <nav aria-label="主导航">
   <button data-v="lib" class="on">谱库</button>
-  <button data-v="mgr">管理</button>
+  <button data-v="how">学习</button>
 </nav>
 
 <main>
@@ -213,7 +213,7 @@
   <h2>他这套谱的读法（照着真谱核对过）</h2>
   <div class="card">
     <h3>1｜圆圈数字是和弦级数，不是音名</h3>
-    <p>①②③⑤⑥⑦ 表示音级。谱左上写 <b>1=C</b>，则 ①=C、④=F、⑤=G；写 <b>1=D</b>（《成都》），① 就变 D。<b>好处：换调不用重新记谱</b>，级数照弹，第三屏那个转调下拉就是演示这件事。</p>
+    <p>①②③⑤⑥⑦ 表示音级。谱左上写 <b>1=C</b>，则 ①=C、④=F、⑤=G；写 <b>1=D</b>（《成都》），① 就变 D。<b>好处：换调不用重新记谱</b>，级数照弹。</p>
     <h3>2｜后缀是和弦色彩</h3>
     <p><b>①add9</b> 一级加九度；<b>③m7</b> 三级小七；<b>⑥m</b> 六级小三；<b>①maj7</b> 一级大七；<b>⑤7/9</b> 属七加九；<b>♯④m7⁻⁵</b> 升四级半减七（《小星星》第 2 小节那个过度和弦）。小星星专业版整首只用了 ①②③⑤♯④♭⑥ 这几级，色彩全在七九度上。</p>
     <h3>3｜斜线转位：读法跟别人相反</h3>
@@ -231,76 +231,6 @@
   </div>
 </section>
 
-<!-- ============ 来源 ============ -->
-<section id="v-src">
-  <h2>数据怎么来的、哪些没验证</h2>
-  <ul class="srcs">
-    <li>目录与谱图：直连中国曲谱网 qupu123.com 抓取（列表 <span class="kbd">/Mobile-lists.html?id=347883&amp;p=1..43&amp;type=user</span>，详情 <span class="kbd">/Mobile-view-id-*.html</span>，图片 <span class="kbd">/Public/Uploads/…jpg</span>）。共 426 条、749 页，其中 2 条站点无图。</li>
-    <li><b>抓取绕过了一个网络故障</b>：这台机器的本地 DNS 解析不出 qupu123.com（浏览器报 ERR_NAME_NOT_RESOLVED），AliDNS 能解析到 <span class="kbd">27.102.129.129</span>，且该服务器只有 80 端口通、443 不通，所以脚本走 http + Host 头直连。站点换 IP 后要重取：<span class="kbd">curl "https://dns.alidns.com/resolve?name=qupu123.com&amp;type=A"</span>。</li>
-    <li>读谱规则：他每张谱附带的原文说明（专业版/唯美版/弹唱版、段落、弱起虚线、转位斜线、灰色横线）＋ 我逐张读图核对。<b>级数和弦（①②③…）这一点是我看图才搞清楚的，之前那版页面用 C/F/G 字母和弦，是错的，已改。</b></li>
-    <li>《小星星》旋律/歌词/和弦：编号 232 专业版第 1 页与弹唱版第 2 页，逐小节转写。</li>
-  </ul>
-  <h3>仍未做到</h3>
-  <ul class="srcs">
-    <li>本页图片为 950px 宽的网页版；原始抓取件（424 首 / 749 页 / 约 342MB）与词曲网高清 PNG 保存在本地。站点本身无图的 2 首（白狐、给我一个理由忘记）除外；编号 239《Wish You A Merry Christmas》因歌名以「…」结尾触发 Windows 文件名限制，已清洗文件名补下成功。</li>
-    <li><b>词曲网 ktvc8.com（你找到的那个站）已经扒完比对过</b>：写轮指园地 8 页 / 153 条 / 388 页谱图，但 148 个可匹配曲名里只有 2 个对不上中国曲谱网，且那 2 个还是同一首的不同写法（爱很简单、今天是你的生日）——<b>它是中国曲谱网的子集，数量上补不到新东西</b>。它的反爬是个假滑动验证：GET <span class="kbd">/verify.asp?action=verify_pass</span> 发 <span class="kbd">SITE_VERIFY_OK</span> cookie 就过；谱页地址藏在 <span class="kbd">/showvisitjs.asp?ID=条目号&amp;uID=214362</span> 返回的 JS 里，连页面上写"须登陆后才能看到"的后续页也一起给。真正补到三样：① 8 首本地曲目的 2050×2879 高清 PNG；②《爱与诚》《心动》写轮指即兴版 5 页 / 3 页全页；③ 反过来发现它有 4 条完全锁在登录后（少年、火烧的寂寞、月之故乡、袖手旁观），这四首中国曲谱网反而能拿到。</li>
-    <li>站点自身的错标我照录未改（例：《默》演唱写"周杰伦"，原唱那英；《女儿情》写"冯珊珊"）。</li>
-    <li>试听音色是合成器，不是钢琴采样；也没做延音踏板与力度层次。</li>
-  </ul>
-  <h3>版权</h3>
-  <p class="muted">谱图版权归打谱者与写轮指本人，水印与"上传于中国曲谱网"字样都在图上，我未做任何抹除。本页面与这些图片仅供你个人练琴，别二次发布、别打包分享。</p>
-</section>
-<section id="v-mgr">
-  <h2>管理曲库</h2>
-  <p class="muted">此页面直接修改 GitHub 仓库，提交后需等待 Pages 部署。令牌保存在本机浏览器的 localStorage，可随时清除；不要在公共设备保存，也不要分享令牌。上传内容会进入公开仓库，请勿上传隐私信息或无权公开的曲谱。</p>
-
-  <div class="card">
-    <b>0｜操作口令</b>
-    <p class="muted" style="margin:2px 0 8px">上传和删除前要先解锁。<b>这只是防手滑的二次确认，不是安全机制</b>——站点是公开静态的，真正的写权限门槛是 GitHub 令牌，没有令牌谁都改不了仓库。</p>
-    <div class="mrow">
-      <input type="password" id="mPass" placeholder="输入操作口令后解锁" style="width:220px" autocomplete="off">
-      <button id="mUnlock" class="btn">解锁</button>
-      <button id="mLock" class="btn g">重新锁定</button>
-      <span id="mLockState" class="tag">未解锁</span>
-    </div>
-  </div>
-
-  <div class="card">
-    <b>1｜连接仓库</b>
-    <p class="muted" style="margin:2px 0 8px">需要一把只有这个仓库 Contents 写权限的 fine-grained 令牌（Settings → Developer settings → Fine-grained tokens → 只勾该仓库、Contents: Read and write）。</p>
-    <div class="mrow">
-      <input type="password" id="mTok" placeholder="粘贴 GitHub 令牌（github_pat_…）" style="flex:1;min-width:220px">
-      <button id="mTokSave" class="btn">存到本机</button>
-      <button id="mTokClear" class="btn g">清除</button>
-      <span id="mWho" class="muted">未连接</span>
-    </div>
-  </div>
-
-  <div class="card">
-    <b>2｜添加曲谱</b>
-    <div class="mrow" style="margin-top:8px">
-      <input type="file" id="mFile" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp" multiple>
-      <input type="text" id="mTitle" placeholder="曲名（留空则用文件名）" style="flex:1;min-width:160px">
-      <input type="text" id="mSinger" placeholder="演唱/来源（可空）" style="width:150px">
-      <button id="mAdd" class="btn">原样上传</button>
-    </div>
-    <p class="muted">多个 PDF 分别成谱，以各自文件名为曲名，共用演唱/来源；多张图片合成一首，按选择顺序排列。PDF 和图片不能混选。单个 PDF 或一组图片可填写曲名。</p>
-    <p class="muted">PDF 和图片按原文件上传，不转码、不缩放、不压缩，单个文件上限 20MB。失败时已上传的文件不会自动删除，请按日志检查仓库。</p>
-    <div id="mProg" class="mprog" hidden><div></div></div>
-    <pre id="mLog" class="mlog"></pre>
-  </div>
-
-  <div class="card">
-    <b>3｜删除曲谱</b>
-    <p class="muted">上传的曲谱会连同原文件从仓库删除；原有曲谱仅隐藏，文件仍在仓库，可以取消隐藏。删除中途失败可能留下不完整曲目或残留文件，请按日志检查仓库。</p>
-    <div class="mrow">
-      <input type="search" id="mDelq" placeholder="搜要删除/隐藏的曲名…" style="flex:1;min-width:200px">
-      <label class="muted"><input type="checkbox" id="mShowHidden"> 显示已隐藏（可取消）</label>
-    </div>
-    <div id="mDelList" class="mdel"></div>
-  </div>
-
-</section>
 </main>
 
 <footer>写轮指 · 简和谱　/　谱图仅供个人练琴，请尊重版权。</footer>
@@ -535,7 +465,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   function paintOne(){ var s=LIB[sel];
     if(!s){ document.getElementById('vTitle').textContent='曲库为空';
       var im=document.getElementById('vImg'); im._t=(im._t||0)+1; if(im._u){URL.revokeObjectURL(im._u);im._u=null;} im.removeAttribute('src'); im._pts=null;
-      document.getElementById('vPage').textContent='还没有曲谱，请到「管理」页上传 PDF';
+      document.getElementById('vPage').textContent='还没有曲谱';
       document.getElementById('vMeta').textContent=''; document.getElementById('vHd').style.display='none'; hdMode=false; return; }
     var ps=actPages(s); if(page>=ps.length)page=ps.length-1; if(page<0)page=0;
     document.getElementById('vTitle').textContent=s.no+' · '+s.t.replace('（简和谱）','')+'　'+(s.s||'')+'　'+(s.src||'中国曲谱网');
@@ -660,12 +590,12 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   }
   document.querySelectorAll('nav button').forEach(function(b){ b.onclick=function(){ go(b.dataset.v); location.hash=b.dataset.v; }; });
   var h=(location.hash||'').replace('#','');
-  if(['lib','mgr'].indexOf(h)>=0) go(h);
+  if(['lib','how'].indexOf(h)>=0) go(h);
 })();
 </script>
-<!-- jianhepu 管理脚本 -->
+<!-- jianhepu PDF 渲染与只读数据加载 -->
 <script type="module">
-  /* pdf.js：上传 PDF 时在浏览器里逐页渲染成 WebP */
+  /* pdf.js：查看上传的 PDF 曲谱时在浏览器里逐页渲染 */
   try {
     const m = await import('./vendor/pdf.min.mjs');
     m.GlobalWorkerOptions.workerSrc = './vendor/pdf.worker.min.mjs';
@@ -673,84 +603,9 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   } catch (e) { console.warn('pdf.js 未加载：', e && e.message); }
 </script>
 <script>
-/* ===== 管理：上传 PDF 加谱 / 删除谱（直写 GitHub 仓库） ===== */
+/* ===== 公开页数据加载：读取线上 user.json / hidden.json，把上传的曲目显示进谱库（只读，不含管理） ===== */
 (function(){
-  var REPO_OWNER='beta7716', REPO='jianhepu-site';
-  var APIU='https://api.github.com/repos/'+REPO_OWNER+'/'+REPO+'/contents/';
-  var TOKKEY='jh_token_'+REPO;
-  var LOCKKEY='jh_lock_'+REPO;
-  /* 操作口令的 SHA-256，源码里不放明文。这只是二次确认，不是安全机制。 */
-  var PASS_DIGEST='ef90d9c1ec76b1edc9edfaf2c0c05359c10ccc49ae8ecf7b7fd25ce9c02e86a4';
-  var $=function(s){ return document.querySelector(s); };
-  var enc=new TextEncoder();
-  function esc(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
-
-  function tok(){ try{ return localStorage.getItem(TOKKEY)||''; }catch(e){ return ''; } }
-  function log(t){ var el=$('#mLog'); if(!el) return; el.textContent += (el.textContent?'\n':'') + t; el.scrollTop=el.scrollHeight; }
-
-  /* ---- 操作口令：会话级解锁，只存一次性标记，不存明文 ---- */
-  function unlocked(){ try{ return sessionStorage.getItem(LOCKKEY)==='1'; }catch(e){ return false; } }
-  function setLock(on){ try{ if(on) sessionStorage.setItem(LOCKKEY,'1'); else sessionStorage.removeItem(LOCKKEY); }catch(e){}
-    var st=$('#mLockState'); if(!st) return;
-    st.textContent = on ? '已解锁（本标签页有效）' : '未解锁';
-    st.className = 'tag' + (on ? ' ok' : '');
-    var p=$('#mPass'); if(p && !on) p.value=''; }
-  function sha256hex(str){
-    if(!(window.crypto && crypto.subtle)) return Promise.reject(new Error('浏览器不支持 crypto.subtle，请用 https 地址打开'));
-    return crypto.subtle.digest('SHA-256', enc.encode(str)).then(function(buf){
-      var u=new Uint8Array(buf), s='';
-      for(var i=0;i<u.length;i++) s+=(u[i]<16?'0':'')+u[i].toString(16);
-      return s;
-    });
-  }
-  function tryUnlock(){
-    var v=($('#mPass').value||'');
-    if(!v) return log('✗ 先输入操作口令');
-    var btn=$('#mUnlock'); if(btn) btn.disabled=true;
-    sha256hex(v).then(function(h){
-      if(btn) btn.disabled=false;
-      if(h===PASS_DIGEST){ setLock(true); $('#mPass').value=''; log('✓ 口令正确，已解锁。解锁只在这个标签页有效，关掉就锁回去。'); }
-      else { setLock(false); log('✗ 口令不对'); }
-    }).catch(function(e){ if(btn) btn.disabled=false; log('✗ '+e.message); });
-  }
-  function gate(){ if(unlocked()) return true; log('✗ 先在上方「0｜操作口令」里解锁'); return false; }
-
-  function prog(done,total,label){ var w=$('#mProg'); if(!w) return; if(total<=0){w.hidden=true;return;}
-    w.hidden=false; var b=w.firstElementChild; b.style.width=Math.round(done/total*100)+'%';
-    b.textContent=label? (done+'/'+total+'  '+label) : (done+'/'+total); }
-  function b64(bytes){ var s='',u=new Uint8Array(bytes),CH=0x8000;
-    for(var i=0;i<u.length;i+=CH) s+=String.fromCharCode.apply(null,u.subarray(i,i+CH)); return btoa(s); }
-  function unb64(str){ var bin=atob(str.replace(/\s+/g,'')),u=new Uint8Array(bin.length);
-    for(var i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return u; }
-  function hdr(extra){ var h={'Accept':'application/vnd.github+json','Content-Type':'application/json'};
-    var t=tok(); if(t) h.Authorization='Bearer '+t;
-    return Object.assign(h, extra||{}); }
-  function jfetch(url,opt){ return fetch(url,opt).then(function(r){ return r.text().then(function(x){
-    var j=null; try{ j=JSON.parse(x); }catch(e){} return {ok:r.ok,status:r.status,json:j,text:x}; }); }); }
-  function api(path,opt){ return jfetch(APIU+encodeURIComponent(path).replace(/%2F/g,'/'), Object.assign({headers:hdr()},opt||{})).then(function(res){
-    if(opt && (opt.method==='PUT' || opt.method==='DELETE') && res.status>=500) throw new Error('服务器返回 '+res.status);
-    return res;
-  }).catch(function(e){
-    if(opt && (opt.method==='PUT' || opt.method==='DELETE')) throw new Error('网络结果不确定，操作可能已成功，请检查路径 '+path+'：'+e.message);
-    throw e;
-  }); }
-
-  function readJson(path){
-    return api(path).then(function(res){
-      if(!res.ok) return null;
-      try{ return {sha:res.json.sha, data:JSON.parse(new TextDecoder().decode(unb64(res.json.content)))}; }
-      catch(e){ log('  解析 '+path+' 失败：'+e.message); return null; }
-    });
-  }
-  function writeJson(path,obj,msg,sha){
-    var body={message:msg,content:b64(enc.encode(JSON.stringify(obj,null,1)))};
-    if(sha) body.sha=sha;
-    return api(path,{method:'PUT',body:JSON.stringify(body)});
-  }
-  function delFile(path,sha,msg){ return api(path,{method:'DELETE',body:JSON.stringify({message:msg,sha:sha})}); }
-
-  /* ---- 动态数据：用户加的谱 + 被隐藏的抓来曲目 ---- */
-  var USER=[], HIDDEN=[], baseLib=[];
+  var USER=[], HIDDEN=[], baseLib=(window.LIB||[]).slice();
   function publicJson(path){ return fetch('site-data/'+path+'?ts='+Date.now(),{cache:'no-store'})
     .then(function(r){ return r.ok? r.json():null; }).catch(function(){ return null; }); }
   function rebuild(){
@@ -769,216 +624,11 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     });
     list.sort(function(a,b){ return a.no-b.no; });
     if(window.__jh) window.__jh.set(list);
-    document.getElementById('libN').textContent=list.length;
+    var n=document.getElementById('libN'); if(n) n.textContent=list.length;
   }
-  function hydrate(){
-    return Promise.all([publicJson('user.json'), publicJson('hidden.json')]).then(function(rs){
-      USER = rs[0] || []; HIDDEN = rs[1] || []; rebuild(); renderDel();
-      log('已载入线上曲库状态：我加的 '+USER.length+' 首，隐藏 '+HIDDEN.length+' 首');
-    }).catch(function(e){ log('读取 site-data 失败（本地打开网页时正常，请用线上地址）：'+e.message); });
-  }
-
-  /* ---- 令牌 ---- */
-  function whoami(){
-    if(!tok()){ $('#mWho').textContent='未连接'; return; }
-    jfetch('https://api.github.com/user',{headers:hdr()}).then(function(res){
-      $('#mWho').textContent = res.ok ? ('已连接：'+res.json.login) : ('令牌无效（'+res.status+'）');
-      if(res.ok) checkWritable();
-    });
-  }
-  function checkWritable(){
-    jfetch('https://api.github.com/repos/'+REPO_OWNER+'/'+REPO+'/collaborator_permissions',
-           {headers:hdr()}).then(function(res){
-      if(!res.ok){ $('#mWho').textContent += ' · 权限未知'; return; }
-      var p=res.json.permission || res.json.role_name;
-      $('#mWho').textContent += ' · 仓库权限：'+(p||'未知');
-    });
-  }
-
-  /* ---- 上传：原样存文件，不转码不压缩 ---- */
-  function nextUserNo(){ var m=9000; USER.forEach(function(u){ m=Math.max(m,u.no); }); return m+1; }
-  var MAX_BYTES=20*1024*1024;
-  function readBytes(file){ return file.arrayBuffer().then(function(b){
-    if(!b.byteLength) throw new Error(file.name+' 是空的');
-    if(b.byteLength>MAX_BYTES) throw new Error(file.name+' 有 '+(b.byteLength/1048576).toFixed(1)+'MB，超过 20MB，先把它拆开或压一下');
-    return new Uint8Array(b); }); }
-  function extOf(name){ var m=/\.([A-Za-z0-9]{1,5})$/.exec(name||''); var e=(m?m[1]:'bin').toLowerCase();
-    return ({pdf:'pdf',png:'png',jpg:'jpg',jpeg:'jpg',webp:'webp',gif:'gif',bmp:'bmp'})[e] || 'bin'; }
-  function pdfPageCount(bytes){
-    if(!window.__pdfjs) return Promise.resolve(0);
-    return window.__pdfjs.getDocument({data:bytes.slice(0)}).promise.then(function(doc){
-      var n=doc.numPages; doc.destroy&&doc.destroy(); return n;
-    }).catch(function(){ return 0; });
-  }
-  function putFile(path, bytes, msg){
-    return api(path,{method:'PUT',body:JSON.stringify({message:msg,content:b64(bytes)})})
-      .then(function(res){
-        if(!res.ok) throw new Error(path+' 上传失败 '+res.status+' '+((res.json&&res.json.message)||'')); return res; });
-  }
-
-  /* 只有明确的 404 才允许创建；读取或解析失败不能当空列表写回。 */
-  function latestUsers(){
-    return api('site-data/user.json').then(function(res){
-      if(res.status===404) return {sha:null,data:[]};
-      if(!res.ok) throw new Error('读取 user.json 失败 '+res.status);
-      try {
-        var data=JSON.parse(new TextDecoder().decode(unb64(res.json.content)));
-        if(!Array.isArray(data) || !res.json.sha) throw new Error('格式或 SHA 无效');
-        return {sha:res.json.sha,data:data};
-      } catch(e){ throw new Error('解析 user.json 失败：'+e.message); }
-    });
-  }
-  function saveEntry(entry, tries){
-    return latestUsers().then(function(cur){
-      if(cur.data.some(function(u){ return u.no===entry.no; })) throw new Error('编号 '+entry.no+' 已被占用，未写入曲库');
-      var list=cur.data.concat([entry]);
-      return writeJson('site-data/user.json',list,'加谱：'+entry.title+'（未压缩）',cur.sha).then(function(res){
-        if((res.status===409 || res.status===422) && tries>0) return saveEntry(entry,tries-1);
-        if(!res.ok) throw new Error('写 user.json 失败 '+res.status+' '+((res.json&&res.json.message)||''));
-        USER=list; rebuild(); renderDel();
-      });
-    });
-  }
-  var adding=false;
-  function doAdd(){
-    if(adding || !gate()) return;
-    var files=Array.prototype.slice.call($('#mFile').files||[]);
-    if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
-    if(!files.length) return log('✗ 先选 PDF 或图片');
-    function isPdf(f){ return /\.pdf$/i.test(f.name) || f.type==='application/pdf'; }
-    function isImage(f){ return /\.(png|jpe?g|webp|gif|bmp)$/i.test(f.name) && (!f.type || /^image\/(png|jpeg|webp|gif|bmp)$/i.test(f.type)); }
-    var pdf=files.every(isPdf), images=files.every(function(f){ return !isPdf(f) && isImage(f); });
-    if(!pdf && !images) return log('✗ 请分别选择 PDF 或图片，不能混选或上传其他文件');
-    var singer=($('#mSinger').value||'').trim() || '本地上传';
-    var custom=($('#mTitle').value||'').trim(), groups=pdf?files.map(function(f){return [f];}):[files];
-    var next=9001, btn=$('#mAdd'); adding=true; if(btn) btn.disabled=true;
-    return groups.reduce(function(chain,group,index){ return chain.then(function(){
-      var title=(pdf && files.length>1 ? '' : custom) || group[0].name.replace(/\.[^.]+$/,'');
-      var no, dir, paths=[], attempted=[];
-      return latestUsers().then(function(cur){
-        no=cur.data.reduce(function(m,u){ return Math.max(m,Number(u.no)||0); },next-1)+1; next=no+1;
-        var random=new Uint8Array(16); window.crypto.getRandomValues(random);
-        dir='songs-user/'+no+'/'+Array.prototype.map.call(random,function(x){ return ('0'+x.toString(16)).slice(-2); }).join('');
-        log('→ 开始：《'+title+'》 编号 '+no+'（原样上传，不压缩）');
-        return group.reduce(function(p,f,i){ return p.then(function(){
-          prog(index,groups.length,'处理 '+title+' '+(i+1)+'/'+group.length);
-          return readBytes(f).then(function(bytes){
-            var path=dir+'/'+(pdf?'source.pdf':(i+1)+'.'+extOf(f.name));
-            return (pdf?pdfPageCount(bytes):Promise.resolve(0)).then(function(n){
-              if(pdf && !n) log('⚠ PDF 页数解析失败，暂按 1 页显示，请检查：'+path);
-              attempted.push(path);
-              return putFile(path,bytes,'加谱 '+title).then(function(){ paths.push(path); return n; });
-            }).then(function(n){ if(pdf) return n; });
-          }).then(function(n){ if(pdf) group.pdfPages=n||1; });
-        }); },Promise.resolve());
-      }).then(function(){
-        var entry={no:no,title:title,singer:singer,added:new Date().toISOString().slice(0,10)};
-        if(pdf){ entry.pdf=paths[0]; entry.pdfPages=group.pdfPages; entry.pages=[]; } else entry.pages=paths;
-        return saveEntry(entry,3);
-      }).then(function(){ log('✓ 已提交：《'+title+'》'); }).catch(function(e){
-        log('✗ 失败：《'+title+'》 '+e.message+(attempted.length?'；尝试上传的文件可能残留，请检查仓库：'+attempted.join('、'):''));
-      });
-    }); },Promise.resolve()).then(function(){ adding=false; if(btn) btn.disabled=false; prog(0,0); },function(e){
-      adding=false; if(btn) btn.disabled=false; prog(0,0); log('✗ 批量上传失败：'+e.message);
-    });
-  }
-
-  /* ---- 删除 / 隐藏 ---- */
-  function renderDel(){
-    var box=$('#mDelList'); if(!box) return;
-    var q=($('#mDelq').value||'').trim().toLowerCase();
-    var showH=$('#mShowHidden').checked;
-    var rows='';
-    USER.forEach(function(u){
-      if(q && u.title.toLowerCase().indexOf(q)<0) return;
-      var what = u.pdf ? ('原谱 PDF'+(u.pdfPages?(' · '+u.pdfPages+' 页'):''))
-                       : (u.pages.length+' 张图');
-      rows+='<div class="mitem"><span class="mi-no">'+u.no+'</span><span class="mi-t">'+esc(u.title)+'</span>'
-        +'<span class="muted">'+what+' · 我上传的</span>'
-        +'<button class="btn danger" data-del="'+u.no+'">删除（连原文件）</button></div>';
-    });
-    baseLib.forEach(function(x){
-      var hid=HIDDEN.indexOf(x.no)>=0;
-      if(hid && !showH) return;
-      if(q && x.t.toLowerCase().indexOf(q)<0) return;
-      rows+='<div class="mitem'+(hid?' dim':'')+'"><span class="mi-no">'+x.no+'</span><span class="mi-t">'+esc(x.t)+'</span>'
-        +'<span class="muted">'+(x.s||'')+' · 抓来的</span>'
-        +'<button class="btn '+(hid?'g':'')+'" data-hide="'+x.no+'" data-on="'+(hid?0:1)+'">'+(hid?'取消隐藏':'隐藏')+'</button></div>';
-    });
-    box.innerHTML = rows || '<p class="muted">没有匹配的曲目。</p>';
-  }
-
-  function doDelete(no){
-    if(!gate()) return;
-    var u=USER.filter(function(x){ return x.no===no; })[0]; if(!u) return;
-    if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
-    var files=(u.pages||[]).slice(); if(u.pdf) files.push(u.pdf);
-    if(!confirm('确定删除《'+u.title+'》和仓库里的 '+files.length+' 个文件？删除中途失败时，曲目可能保留但缺少部分页面。')) return;
-    log('→ 删除《'+u.title+'》（'+files.length+' 个文件）');
-    function removeEntry(tries){
-      return latestUsers().then(function(cur){
-        var current=cur.data.filter(function(x){ return x.no===no; })[0];
-        if(!current || JSON.stringify(current)!==JSON.stringify(u)) throw new Error('远端曲目已变化或不存在，停止删除');
-        var list=cur.data.filter(function(x){ return x.no!==no; });
-        return writeJson('site-data/user.json',list,'删谱：'+u.title,cur.sha).then(function(res){
-          if((res.status===409 || res.status===422) && tries>0) return removeEntry(tries-1);
-          if(!res.ok) throw new Error('写 user.json 失败 '+res.status);
-          USER=list; rebuild(); renderDel();
-        });
-      });
-    }
-    return latestUsers().then(function(cur){
-      var current=cur.data.filter(function(x){ return x.no===no; })[0];
-      if(!current || JSON.stringify(current)!==JSON.stringify(u)) throw new Error('远端曲目已变化或不存在，停止删除');
-      return files.reduce(function(chain,p,i){ return chain.then(function(){
-        return api(p).then(function(res){
-          if(res.status===404) return;
-          if(!res.ok || !res.json || !res.json.sha) throw new Error('读取文件失败 '+p+' '+res.status);
-          prog(i,files.length,'删文件 '+(i+1));
-          return delFile(p,res.json.sha,'删谱文件 '+u.title).then(function(r){ if(!r.ok) throw new Error('删除文件失败 '+p+' '+r.status); });
-        });
-      }); },Promise.resolve());
-    }).then(function(){ return removeEntry(3); }).then(function(){ prog(0,0); log('✓ 已删除《'+u.title+'》。约一分钟后刷新生效。');
-    }).catch(function(e){ prog(0,0); log('✗ 删除失败：'+e.message+(files.length?'；曲目可能保留但缺少部分页面，也可能残留文件，请检查：'+files.join('、'):'')); });
-  }
-
-  function doHide(no, on){
-    if(!gate()) return;
-    if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
-    var list=HIDDEN.slice();
-    if(on){ if(list.indexOf(no)<0) list.push(no); } else { list=list.filter(function(x){ return x!==no; }); }
-    readJson('site-data/hidden.json').then(function(cur){
-      return writeJson('site-data/hidden.json', list, (on?'隐藏':'取消隐藏')+'曲目 '+no, cur&&cur.sha)
-        .then(function(res){ if(!res.ok) throw new Error(res.status+' '+(res.json&&res.json.message));
-          HIDDEN=list; rebuild(); renderDel(); log('✓ 已'+(on?'隐藏':'取消隐藏')+'编号 '+no+'，约一分钟后生效'); });
-    }).catch(function(e){ log('✗ 失败：'+e.message); });
-  }
-
-  /* ---- 装配 ---- */
-  function init(){
-    baseLib=(window.LIB||[]).slice();
-    setLock(unlocked());
-    var t=$('#mTok'); if(t && tok()) t.value=tok();
-    whoami();
-    hydrate();
-    $('#mUnlock').onclick=tryUnlock;
-    $('#mPass').addEventListener('keydown',function(e){ if(e.key==='Enter') tryUnlock(); });
-    $('#mLock').onclick=function(){ setLock(false); log('✓ 已重新锁定'); };
-    $('#mTokSave').onclick=function(){ var v=($('#mTok').value||'').trim();
-      if(!v) return log('✗ 令牌为空');
-      try{ localStorage.setItem(TOKKEY,v); }catch(e){ return log('✗ 本机不允许保存（隐私模式？）'); }
-      log('✓ 令牌已存到本机 localStorage'); whoami(); };
-    $('#mTokClear').onclick=function(){ try{ localStorage.removeItem(TOKKEY); }catch(e){} $('#mTok').value='';
-      $('#mWho').textContent='未连接'; log('✓ 已清除本机令牌'); };
-    $('#mAdd').onclick=doAdd;
-    $('#mDelq').addEventListener('input',renderDel);
-    $('#mShowHidden').addEventListener('change',renderDel);
-    $('#mDelList').addEventListener('click',function(e){
-      var d=e.target.getAttribute('data-del'), h=e.target.getAttribute('data-hide');
-      if(d) doDelete(+d); else if(h) doHide(+h, e.target.getAttribute('data-on')==='1');
-    });
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+  Promise.all([publicJson('user.json'), publicJson('hidden.json')]).then(function(rs){
+    USER=rs[0]||[]; HIDDEN=rs[1]||[]; rebuild();
+  });
 })();
 </script>
 </body>
