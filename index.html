@@ -532,7 +532,11 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   function clampEdge(x){ return Math.max(700, Math.min(4500, Math.round(x))); }
 
   function actPages(s){ return (hdMode&&s.hd&&s.hd.length)?s.hd:s.pages; }
-  function paintOne(){ var s=LIB[sel]; if(!s)return;
+  function paintOne(){ var s=LIB[sel];
+    if(!s){ document.getElementById('vTitle').textContent='曲库为空';
+      var im=document.getElementById('vImg'); im._t=(im._t||0)+1; if(im._u){URL.revokeObjectURL(im._u);im._u=null;} im.removeAttribute('src'); im._pts=null;
+      document.getElementById('vPage').textContent='还没有曲谱，请到「管理」页上传 PDF';
+      document.getElementById('vMeta').textContent=''; document.getElementById('vHd').style.display='none'; hdMode=false; return; }
     var ps=actPages(s); if(page>=ps.length)page=ps.length-1; if(page<0)page=0;
     document.getElementById('vTitle').textContent=s.no+' · '+s.t.replace('（简和谱）','')+'　'+(s.s||'')+'　'+(s.src||'中国曲谱网');
     var cur=ps[page], vImg=document.getElementById('vImg');
@@ -559,12 +563,12 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     }).catch(function(){}); }
   document.getElementById('vHd').onclick=function(){ hdMode=!hdMode; page=0; paintOne(); };
   document.getElementById('vPrev').onclick=function(){ if(page>0){page--;paintOne();} };
-  document.getElementById('vNext').onclick=function(){ if(page<LIB[sel].pages.length-1){page++;paintOne();} };
+  document.getElementById('vNext').onclick=function(){ if(LIB[sel]&&page<LIB[sel].pages.length-1){page++;paintOne();} };
   var _zTimer=null;
   document.getElementById('vZoom').oninput=function(){ document.getElementById('vImg').style.width=this.value+'%';
     var s=LIB[sel]; if(s&&s.pdf){ clearTimeout(_zTimer); _zTimer=setTimeout(function(){
       mountPdf(document.getElementById('vImg'), s.pdf, page, stageEdge(), true); },260); } };
-  document.getElementById('vOpen').onclick=function(){ var s=LIB[sel], cur=actPages(s)[page];
+  document.getElementById('vOpen').onclick=function(){ var s=LIB[sel]; if(!s)return; var cur=actPages(s)[page];
     if(isPdfSrc(cur)) window.open(s.pdf); else window.open(cur); };
   document.getElementById('libq').addEventListener('input',paintList);
   paintList(); paintOne();
