@@ -804,6 +804,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   function nextUserNo(){ var m=9000; USER.forEach(function(u){ m=Math.max(m,u.no); }); return m+1; }
   var MAX_BYTES=20*1024*1024;
   var UPLOAD_CONCURRENCY=4;   /* 同时在传的文件数；GitHub 并发上限 100，这里留足余量也更稳 */
+  var TREE_CHUNK=100;         /* 建树每块条目数；一次建太大目录会 422，分块串起来 */
   function readBytes(file){ return file.arrayBuffer().then(function(b){
     if(!b.byteLength) throw new Error(file.name+' 是空的');
     if(b.byteLength>MAX_BYTES) throw new Error(file.name+' 有 '+(b.byteLength/1048576).toFixed(1)+'MB，超过 20MB，先把它拆开或压一下');
@@ -908,6 +909,17 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     }
     return go();
   }
+  /* GitHub 建树有输入上限：一次建上千条会 422（input too large）。分块建、把上一棵树当 base_tree 串起来，最终仍只有一个 commit。 */
+  function buildTreeIncremental(baseTree, entries, chunkSize){
+    chunkSize = Math.max(1, chunkSize|0);
+    var i=0;
+    function step(cur){
+      if(i>=entries.length) return Promise.resolve(cur);
+      var chunk=entries.slice(i, i+chunkSize); i+=chunkSize;
+      return createTree(cur, chunk).then(step);
+    }
+    return step(baseTree);
+  }
 
   /* 纯逻辑：给各组分配编号与路径，生成 user.json 新条目和文件任务；makeDir/today 可注入便于测试。 */
   function planUpload(groups, current, makeDir, today){
@@ -1000,7 +1012,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
             return createBlobRetry(enc.encode(JSON.stringify(plan.merged,null,1))).then(function(userSha){
               var treeEntries=plan.jobs.map(function(j){ return {path:j.path,mode:'100644',type:'blob',sha:fileBlobShas[j.groupIndex+':'+j.fileIndex]}; });
               treeEntries.push({path:'site-data/user.json',mode:'100644',type:'blob',sha:userSha});
-              return createTree(head.baseTree, treeEntries).then(function(treeSha){
+              return buildTreeIncremental(head.baseTree, treeEntries, TREE_CHUNK).then(function(treeSha){
                 var msg=plan.entries.length===1 ? ('加谱：'+plan.entries[0].title+'（未压缩）') : ('加谱：'+plan.entries.length+' 首（'+plan.entries[0].title+' 等，未压缩，批量一次提交）');
                 return createCommit(msg, treeSha, head.head).then(function(commitSha){
                   return updateRef(commitSha).then(function(res){
@@ -1084,7 +1096,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
         return createBlobRetry(enc.encode(JSON.stringify(plan.remaining,null,1))).then(function(userSha){
           var treeEntries=plan.files.map(function(p){ return {path:p,mode:'100644',type:'blob',sha:null}; });
           treeEntries.push({path:'site-data/user.json',mode:'100644',type:'blob',sha:userSha});
-          return createTree(head.baseTree, treeEntries).then(function(treeSha){
+          return buildTreeIncremental(head.baseTree, treeEntries, TREE_CHUNK).then(function(treeSha){
             var msg=plan.removed.length===1 ? ('删谱：'+plan.removed[0].title+'（连原文件，一次提交）') : ('删谱：'+plan.removed.length+' 首（连原文件，批量一次提交）');
             return createCommit(msg, treeSha, head.head).then(function(commitSha){
               return updateRef(commitSha).then(function(res){
