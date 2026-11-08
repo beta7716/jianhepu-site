@@ -286,7 +286,7 @@
       <button id="mAdd" class="btn">原样上传</button>
     </div>
     <p class="muted">多个 PDF 分别成谱，以各自文件名为曲名，共用演唱/来源；多张图片合成一首，按选择顺序排列。PDF 和图片不能混选。单个 PDF 或一组图片可填写曲名。</p>
-    <p class="muted">PDF 和图片按原文件上传，不转码、不缩放、不压缩，单个文件上限 20MB。整批合并成一次提交：要么全部写入，要么都不写，失败不会留下残留文件。</p>
+    <p class="muted">PDF 和图片按原文件上传，不转码、不缩放、不压缩，单个文件上限 20MB。并发上传（同时 4 个），网络错误和限流会自动重试。整批合并成一次提交：要么全部写入，要么都不写，失败不会留下残留文件。</p>
     <div id="mProg" class="mprog" hidden><div></div></div>
     <pre id="mLog" class="mlog"></pre>
   </div>
@@ -731,7 +731,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     var t=tok(); if(t) h.Authorization='Bearer '+t;
     return Object.assign(h, extra||{}); }
   function jfetch(url,opt){ return fetch(url,opt).then(function(r){ return r.text().then(function(x){
-    var j=null; try{ j=JSON.parse(x); }catch(e){} return {ok:r.ok,status:r.status,json:j,text:x}; }); }); }
+    var j=null; try{ j=JSON.parse(x); }catch(e){} return {ok:r.ok,status:r.status,json:j,text:x,headers:r.headers}; }); }); }
   function api(path,opt){ return jfetch(APIU+encodeURIComponent(path).replace(/%2F/g,'/'), Object.assign({headers:hdr()},opt||{})).then(function(res){
     if(opt && (opt.method==='PUT' || opt.method==='DELETE') && res.status>=500) throw new Error('服务器返回 '+res.status);
     return res;
@@ -803,6 +803,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   /* ---- 上传：原样存文件，不转码不压缩 ---- */
   function nextUserNo(){ var m=9000; USER.forEach(function(u){ m=Math.max(m,u.no); }); return m+1; }
   var MAX_BYTES=20*1024*1024;
+  var UPLOAD_CONCURRENCY=4;   /* 同时在传的文件数；GitHub 并发上限 100，这里留足余量也更稳 */
   function readBytes(file){ return file.arrayBuffer().then(function(b){
     if(!b.byteLength) throw new Error(file.name+' 是空的');
     if(b.byteLength>MAX_BYTES) throw new Error(file.name+' 有 '+(b.byteLength/1048576).toFixed(1)+'MB，超过 20MB，先把它拆开或压一下');
@@ -832,7 +833,18 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   }
   function createBlob(bytes){
     return gitApi('POST','/git/blobs',{content:b64(bytes),encoding:'base64'}).then(function(res){
-      if(!res.ok || !res.json || !res.json.sha) throw new Error('建 blob 失败 '+res.status+' '+((res.json&&res.json.message)||''));
+      if(!res.ok || !res.json || !res.json.sha){
+        var err=new Error('建 blob 失败 '+res.status+' '+((res.json&&res.json.message)||''));
+        err.status=res.status;
+        if(res.headers && res.headers.get){
+          var ra=res.headers.get('retry-after'); if(ra) err.retryAfter=Number(ra)||0;
+          if(res.headers.get('x-ratelimit-remaining')==='0'){
+            var reset=Number(res.headers.get('x-ratelimit-reset')||0);
+            if(reset){ err.retryAfter=Math.max(err.retryAfter||0, Math.min(Math.max(0, reset-Math.floor(Date.now()/1000)), 3600)); }
+          }
+        }
+        throw err;
+      }
       return res.json.sha;
     });
   }
@@ -849,6 +861,53 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     });
   }
   function updateRef(commitSha){ return gitApi('PATCH','/git/refs/heads/main',{sha:commitSha,force:false}); }
+
+  /* 并发上限：最多 limit 个 worker 同时在跑，按原顺序返回结果；任一失败即整体失败。 */
+  function mapLimit(items, limit, worker){
+    limit = Math.max(1, limit|0);
+    return new Promise(function(resolve, reject){
+      var n=items.length, results=new Array(n), next=0, active=0, done=0, failed=false;
+      if(n===0){ resolve(results); return; }
+      function pump(){
+        if(failed) return;
+        while(active<limit && next<n){
+          (function(i){
+            active++;
+            Promise.resolve().then(function(){ return worker(items[i], i); }).then(function(r){
+              results[i]=r; active--; done++;
+              if(done===n) resolve(results); else pump();
+            }, function(e){ failed=true; reject(e); });
+          })(next);
+          next++;
+        }
+      }
+      pump();
+    });
+  }
+  function sleep(ms){ return new Promise(function(res){ setTimeout(res, ms); }); }
+  /* 可重试的失败：网络层（没有 status）、403/408/429/5xx。其他（401/404 等）重试也没用。 */
+  function isBlobRetryable(e){
+    if(!e) return false;
+    if(typeof e.status==='number') return e.status===403 || e.status===408 || e.status===429 || e.status>=500;
+    return true;
+  }
+  /* 带重试建 blob：指数退避加抖动；有 Retry-After 就照它等，避免把限流打成更难恢复。 */
+  function createBlobRetry(bytes, tries){
+    tries = (typeof tries==='number') ? tries : 6;
+    var attempt=0;
+    function go(){
+      return createBlob(bytes).catch(function(e){
+        if(attempt>=tries || !isBlobRetryable(e)) throw e;
+        var wait = (e.retryAfter && e.retryAfter>0) ? Math.min(e.retryAfter*1000, 3600000)
+                                                     : Math.min(30000, 500*Math.pow(2, attempt));
+        wait += Math.floor(Math.random()*250);
+        attempt++;
+        if(typeof log==='function') log('… 上传重试 '+attempt+'/'+tries+'：'+((e&&e.message)||e)+'，等 '+Math.max(1,Math.round(wait/1000))+' 秒');
+        return sleep(wait).then(go);
+      });
+    }
+    return go();
+  }
 
   /* 纯逻辑：给各组分配编号与路径，生成 user.json 新条目和文件任务；makeDir/today 可注入便于测试。 */
   function planUpload(groups, current, makeDir, today){
@@ -924,17 +983,21 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
       /* 2) 并行建 blob，合成一个 commit，一次更新 main；撞车就重新合并重试 */
       var fileBlobShas={};
       function bytesFor(j){ for(var k=0;k<prepared.length;k++){ if(prepared[k].groupIndex===j.groupIndex && prepared[k].fileIndex===j.fileIndex) return prepared[k].bytes; } throw new Error('找不到文件字节'); }
+      function releaseBytes(j){ for(var k=0;k<prepared.length;k++){ if(prepared[k] && prepared[k].groupIndex===j.groupIndex && prepared[k].fileIndex===j.fileIndex){ prepared[k].bytes=null; break; } } }
       function attempt(tries){
         return Promise.all([getHead(), latestUsers()]).then(function(rs){
           var head=rs[0], cur=rs[1], plan=planUpload(groupsMeta, cur.data, makeDir, today);
           log('→ 本次 '+plan.entries.length+' 首、'+plan.jobs.length+' 个文件，合并成一次提交（原样不压缩）');
           var missing=plan.jobs.filter(function(j){ return !((j.groupIndex+':'+j.fileIndex) in fileBlobShas); });
           var done=0;
-          return Promise.all(missing.map(function(j){
-            return createBlob(bytesFor(j)).then(function(sha){ fileBlobShas[j.groupIndex+':'+j.fileIndex]=sha; done++; prog(done,plan.jobs.length,'上传文件'); });
-          })).then(function(){
+          return mapLimit(missing, UPLOAD_CONCURRENCY, function(j){
+            return createBlobRetry(bytesFor(j)).then(function(sha){
+              fileBlobShas[j.groupIndex+':'+j.fileIndex]=sha; done++; prog(done,plan.jobs.length,'上传文件');
+              releaseBytes(j);
+            });
+          }).then(function(){
             prog(plan.jobs.length,plan.jobs.length,'合并提交');
-            return createBlob(enc.encode(JSON.stringify(plan.merged,null,1))).then(function(userSha){
+            return createBlobRetry(enc.encode(JSON.stringify(plan.merged,null,1))).then(function(userSha){
               var treeEntries=plan.jobs.map(function(j){ return {path:j.path,mode:'100644',type:'blob',sha:fileBlobShas[j.groupIndex+':'+j.fileIndex]}; });
               treeEntries.push({path:'site-data/user.json',mode:'100644',type:'blob',sha:userSha});
               return createTree(head.baseTree, treeEntries).then(function(treeSha){
@@ -1018,7 +1081,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
       return Promise.all([getHead(), latestUsers()]).then(function(rs){
         var head=rs[0], cur=rs[1], plan=planDelete(cur.data, nos);
         if(!plan.removed.length){ USER=cur.data; DELSEL={}; rebuild(); renderDel(); log('… 远端已无这些曲目，视为已删除'); return; }
-        return createBlob(enc.encode(JSON.stringify(plan.remaining,null,1))).then(function(userSha){
+        return createBlobRetry(enc.encode(JSON.stringify(plan.remaining,null,1))).then(function(userSha){
           var treeEntries=plan.files.map(function(p){ return {path:p,mode:'100644',type:'blob',sha:null}; });
           treeEntries.push({path:'site-data/user.json',mode:'100644',type:'blob',sha:userSha});
           return createTree(head.baseTree, treeEntries).then(function(treeSha){
