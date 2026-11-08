@@ -163,7 +163,8 @@
   .vbar #vFull{background:var(--accent);border-color:var(--accent);color:#fff}
   .card{padding:22px 24px;margin:18px 0}
   .preview-note{padding:14px 18px;background:var(--warnbg);color:#523b85;border-radius:14px;font-size:14px}
-  .mitem button:disabled,#mAdd:disabled{opacity:.48;cursor:not-allowed}
+  .mitem button:disabled,#mAdd:disabled,#mDelSel:disabled{opacity:.48;cursor:not-allowed}
+  .mdel-check{flex:0 0 auto;width:17px;height:17px;cursor:pointer;accent-color:var(--accent2)}
   footer{padding:0 28px 40px}
   @media(max-width:820px){header{padding:44px 20px 24px}main{padding:0 20px 60px}.lib{grid-template-columns:minmax(0,1fr)}.libside{max-height:300px}.viewer{min-height:280px}nav{top:8px}h1{font-size:clamp(36px,9vw,54px)}}
 </style>
@@ -292,10 +293,14 @@
 
   <div class="card">
     <b>3｜删除曲谱</b>
-    <p class="muted">上传的曲谱会连同原文件从仓库删除；原有曲谱仅隐藏，文件仍在仓库，可以取消隐藏。删除中途失败可能留下不完整曲目或残留文件，请按日志检查仓库。</p>
+    <p class="muted">上传的曲谱可勾选后批量删除，连同原文件一次提交：要么全删，要么都不动，失败不会改动仓库。原有曲谱仅隐藏，文件仍在仓库，可以取消隐藏。</p>
     <div class="mrow">
       <input type="search" id="mDelq" placeholder="搜要删除/隐藏的曲名…" style="flex:1;min-width:200px">
       <label class="muted"><input type="checkbox" id="mShowHidden"> 显示已隐藏（可取消）</label>
+    </div>
+    <div class="mrow">
+      <label class="muted"><input type="checkbox" id="mSelAll"> 全选我上传的（当前列表）</label>
+      <button class="btn danger" id="mDelSel" disabled>删除选中（0）</button>
     </div>
     <div id="mDelList" class="mdel"></div>
   </div>
@@ -955,16 +960,36 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   }
 
   /* ---- 删除 / 隐藏 ---- */
+  var DELSEL={};
+  function delQuery(){ return ($('#mDelq').value||'').trim().toLowerCase(); }
+  function filteredUsers(){ var q=delQuery(); return USER.filter(function(u){ return !q || u.title.toLowerCase().indexOf(q)>=0; }); }
+  function syncSelUI(){
+    var n=0,k; for(k in DELSEL){ if(DELSEL[k]) n++; }
+    var btn=$('#mDelSel'); if(btn){ btn.textContent='删除选中（'+n+'）'; btn.disabled=(n===0); }
+    var all=$('#mSelAll'); if(all){ var vis=filteredUsers(); all.checked=vis.length>0 && vis.every(function(u){ return !!DELSEL[u.no]; }); }
+  }
+  /* 纯逻辑：从曲库里挑出选中条目、汇总要删的原文件、留下剩余条目。 */
+  function planDelete(current, nos){
+    var set={}; nos.forEach(function(n){ set[n]=1; });
+    var removed=[], files=[];
+    var remaining=current.filter(function(u){
+      if(set[u.no]){
+        removed.push(u);
+        (u.pages||[]).forEach(function(p){ files.push(p); });
+        if(u.pdf) files.push(u.pdf);
+        return false;
+      }
+      return true;
+    });
+    return {removed:removed,files:files,remaining:remaining};
+  }
   function renderDel(){
     var box=$('#mDelList'); if(!box) return;
-    var q=($('#mDelq').value||'').trim().toLowerCase();
-    var showH=$('#mShowHidden').checked;
-    var rows='';
-    USER.forEach(function(u){
-      if(q && u.title.toLowerCase().indexOf(q)<0) return;
+    var q=delQuery(), showH=$('#mShowHidden').checked, rows='';
+    filteredUsers().forEach(function(u){
       var what = u.pdf ? ('原谱 PDF'+(u.pdfPages?(' · '+u.pdfPages+' 页'):''))
                        : (u.pages.length+' 张图');
-      rows+='<div class="mitem"><span class="mi-no">'+u.no+'</span><span class="mi-t">'+esc(u.title)+'</span>'
+      rows+='<div class="mitem"><input type="checkbox" class="mdel-check" data-check="'+u.no+'"'+(DELSEL[u.no]?' checked':'')+'><span class="mi-no">'+u.no+'</span><span class="mi-t">'+esc(u.title)+'</span>'
         +'<span class="muted">'+what+' · 我上传的</span>'
         +'<button class="btn danger" data-del="'+u.no+'">删除（连原文件）</button></div>';
     });
@@ -977,40 +1002,46 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
         +'<button class="btn '+(hid?'g':'')+'" data-hide="'+x.no+'" data-on="'+(hid?0:1)+'">'+(hid?'取消隐藏':'隐藏')+'</button></div>';
     });
     box.innerHTML = rows || '<p class="muted">没有匹配的曲目。</p>';
+    syncSelUI();
   }
 
-  function doDelete(no){
+  function doDeleteMany(nos){
     if(!gate()) return;
-    var u=USER.filter(function(x){ return x.no===no; })[0]; if(!u) return;
     if(!tok()) return log('✗ 先填并保存 GitHub 令牌');
-    var files=(u.pages||[]).slice(); if(u.pdf) files.push(u.pdf);
-    if(!confirm('确定删除《'+u.title+'》和仓库里的 '+files.length+' 个文件？删除中途失败时，曲目可能保留但缺少部分页面。')) return;
-    log('→ 删除《'+u.title+'》（'+files.length+' 个文件）');
-    function removeEntry(tries){
-      return latestUsers().then(function(cur){
-        var current=cur.data.filter(function(x){ return x.no===no; })[0];
-        if(!current || JSON.stringify(current)!==JSON.stringify(u)) throw new Error('远端曲目已变化或不存在，停止删除');
-        var list=cur.data.filter(function(x){ return x.no!==no; });
-        return writeJson('site-data/user.json',list,'删谱：'+u.title,cur.sha).then(function(res){
-          if((res.status===409 || res.status===422) && tries>0) return removeEntry(tries-1);
-          if(!res.ok) throw new Error('写 user.json 失败 '+res.status);
-          USER=list; rebuild(); renderDel();
+    nos=nos.filter(function(n,i){ return nos.indexOf(n)===i; });
+    var plan0=planDelete(USER, nos);
+    if(!plan0.removed.length) return log('✗ 没有可删的曲目（可能已不在曲库）');
+    if(!confirm('确定删除 '+plan0.removed.length+' 首曲谱和仓库里的 '+plan0.files.length+' 个文件？整批一次提交，要么全删要么都不动。')) return;
+    log('→ 批量删除 '+plan0.removed.length+' 首（'+plan0.files.length+' 个文件），合并成一次提交');
+    var btn=$('#mDelSel'); if(btn) btn.disabled=true;
+    function attempt(tries){
+      return Promise.all([getHead(), latestUsers()]).then(function(rs){
+        var head=rs[0], cur=rs[1], plan=planDelete(cur.data, nos);
+        if(!plan.removed.length){ USER=cur.data; DELSEL={}; rebuild(); renderDel(); log('… 远端已无这些曲目，视为已删除'); return; }
+        return createBlob(enc.encode(JSON.stringify(plan.remaining,null,1))).then(function(userSha){
+          var treeEntries=plan.files.map(function(p){ return {path:p,mode:'100644',type:'blob',sha:null}; });
+          treeEntries.push({path:'site-data/user.json',mode:'100644',type:'blob',sha:userSha});
+          return createTree(head.baseTree, treeEntries).then(function(treeSha){
+            var msg=plan.removed.length===1 ? ('删谱：'+plan.removed[0].title+'（连原文件，一次提交）') : ('删谱：'+plan.removed.length+' 首（连原文件，批量一次提交）');
+            return createCommit(msg, treeSha, head.head).then(function(commitSha){
+              return updateRef(commitSha).then(function(res){
+                if(res.ok){ USER=plan.remaining; DELSEL={}; rebuild(); renderDel();
+                  log('✓ 已一次删除 '+plan.removed.length+' 首（commit '+commitSha.slice(0,8)+'）。Pages 重建后公开页生效。'); return; }
+                if((res.status===409 || res.status===422) && tries>0){ log('… 远端有更新，重新合并重试（剩 '+tries+' 次）'); return attempt(tries-1); }
+                throw new Error('更新 main 失败 '+res.status+' '+((res.json&&res.json.message)||'')+'；本次未改动，仓库未变');
+              });
+            });
+          });
         });
       });
     }
-    return latestUsers().then(function(cur){
-      var current=cur.data.filter(function(x){ return x.no===no; })[0];
-      if(!current || JSON.stringify(current)!==JSON.stringify(u)) throw new Error('远端曲目已变化或不存在，停止删除');
-      return files.reduce(function(chain,p,i){ return chain.then(function(){
-        return api(p).then(function(res){
-          if(res.status===404) return;
-          if(!res.ok || !res.json || !res.json.sha) throw new Error('读取文件失败 '+p+' '+res.status);
-          prog(i,files.length,'删文件 '+(i+1));
-          return delFile(p,res.json.sha,'删谱文件 '+u.title).then(function(r){ if(!r.ok) throw new Error('删除文件失败 '+p+' '+r.status); });
-        });
-      }); },Promise.resolve());
-    }).then(function(){ return removeEntry(3); }).then(function(){ prog(0,0); log('✓ 已删除《'+u.title+'》。约一分钟后刷新生效。');
-    }).catch(function(e){ prog(0,0); log('✗ 删除失败：'+e.message+(files.length?'；曲目可能保留但缺少部分页面，也可能残留文件，请检查：'+files.join('、'):'')); });
+    return attempt(3).then(function(){ prog(0,0); syncSelUI(); },function(e){
+      prog(0,0); syncSelUI(); log('✗ 批量删除失败：'+e.message+'（原子提交：失败时整批都不会改动）');
+    });
+  }
+  function doDelete(no){
+    if(!gate()) return;
+    return doDeleteMany([no]);
   }
 
   function doHide(no, on){
@@ -1048,6 +1079,19 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
       var d=e.target.getAttribute('data-del'), h=e.target.getAttribute('data-hide');
       if(d) doDelete(+d); else if(h) doHide(+h, e.target.getAttribute('data-on')==='1');
     });
+    $('#mDelList').addEventListener('change',function(e){
+      var c=e.target.getAttribute('data-check');
+      if(c!=null){ var no=+c; if(e.target.checked) DELSEL[no]=true; else delete DELSEL[no]; syncSelUI(); }
+    });
+    $('#mSelAll').addEventListener('change',function(){
+      var on=this.checked;
+      filteredUsers().forEach(function(u){ if(on) DELSEL[u.no]=true; else delete DELSEL[u.no]; });
+      renderDel();
+    });
+    $('#mDelSel').onclick=function(){
+      var nos=[],k; for(k in DELSEL){ if(DELSEL[k]) nos.push(+k); }
+      if(nos.length) doDeleteMany(nos);
+    };
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
 })();
