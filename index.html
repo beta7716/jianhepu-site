@@ -413,12 +413,22 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
   var LIB=window.LIB||[], CAT=window.CAT||[];
   document.getElementById('libN').textContent=LIB.length;
   var _cn=document.getElementById('catN'); if(_cn)_cn.textContent=CAT.length;
-  var sel=0,page=0,list=document.getElementById('libList');
-  function paintList(){ var q=(document.getElementById('libq').value||'').trim().toLowerCase();
-    list.innerHTML=''; LIB.forEach(function(x,i){ if(q&&(x.t+x.s).toLowerCase().indexOf(q)<0)return;
+  var sel=0,page=0,letterSel='',list=document.getElementById('libList');
+  function libMatches(x, q, letterSel){
+    if(letterSel) return initialOf(x.t)===letterSel;
+    if(q) return ((x.t||'')+(x.s||'')).toLowerCase().indexOf(q)>=0;
+    return true;
+  }
+  function paintList(){
+    var iq=document.getElementById('libq');
+    var q=((iq&&iq.value)||'').trim().toLowerCase();
+    list.innerHTML=''; var firstVisible=-1, selVisible=false;
+    LIB.forEach(function(x,i){ if(!libMatches(x,q,letterSel)) return;
+      if(firstVisible<0)firstVisible=i; if(i===sel)selVisible=true;
       var li=document.createElement('li'); li.innerHTML='<span class="no">'+x.no+'</span><span>'+x.t.replace('（简和谱）','')+(x.hd&&x.hd.length?' <span class="tag loc">高清</span>':'')+(x.src&&x.src.indexOf('词曲')>=0?' <span class="tag">即兴版</span>':'')+(x.pdf?' <span class="tag">原谱PDF</span>':'')+(x.src==='我上传的'&&!x.pdf?' <span class="tag">我传的</span>':'')+'</span>';
       if(i===sel)li.className='on'; li.onclick=function(){sel=i;page=0;paintList();paintOne();}; list.appendChild(li);
     });
+    if(!selVisible && firstVisible>=0) sel=firstVisible;
     renderChips();
   }
   function initialOf(t){ var c=(t||'').trim().charAt(0); return /[A-Za-z]/.test(c)?c.toUpperCase():null; }
@@ -427,12 +437,12 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     var seen={}, letters=[];
     LIB.forEach(function(x){ var L=initialOf(x.t); if(L&&!seen[L]){seen[L]=1;letters.push(L);} });
     letters.sort();
-    var q=(document.getElementById('libq').value||'').trim().toUpperCase();
     box.innerHTML='';
     letters.forEach(function(L){
       var b=document.createElement('button'); b.type='button'; b.textContent=L;
-      if(q===L)b.className='on';
-      b.onclick=function(){ document.getElementById('libq').value=L; paintList(); };
+      b.setAttribute('aria-pressed', letterSel===L?'true':'false');
+      if(letterSel===L)b.className='on';
+      b.onclick=function(){ letterSel=(letterSel===L)?'':L; var iq=document.getElementById('libq'); if(iq)iq.value=''; sel=0;page=0; paintList(); paintOne(); };
       box.appendChild(b);
     });
   }
@@ -520,7 +530,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
       mountPdf(document.getElementById('vImg'), s.pdf, page, stageEdge(), true); },260); } };
   document.getElementById('vOpen').onclick=function(){ var s=LIB[sel]; if(!s)return; var cur=actPages(s)[page];
     if(isPdfSrc(cur)) window.open(s.pdf); else window.open(cur); };
-  document.getElementById('libq').addEventListener('input',paintList);
+  document.getElementById('libq').addEventListener('input',function(){ letterSel=''; paintList(); });
   paintList(); paintOne();
   window.__jh={ set:function(a){ LIB=a.slice(); sel=0; page=0; paintList(); paintOne(); }, get:function(){ return LIB; } };
 
