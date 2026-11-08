@@ -285,7 +285,7 @@
       <button id="mAdd" class="btn">原样上传</button>
     </div>
     <p class="muted">多个 PDF 分别成谱，以各自文件名为曲名，共用演唱/来源；多张图片合成一首，按选择顺序排列。PDF 和图片不能混选。单个 PDF 或一组图片可填写曲名。</p>
-    <p class="muted">PDF 和图片按原文件上传，不转码、不缩放、不压缩，单个文件上限 20MB。失败时已上传的文件不会自动删除，请按日志检查仓库。</p>
+    <p class="muted">PDF 和图片按原文件上传，不转码、不缩放、不压缩，单个文件上限 20MB。整批合并成一次提交：要么全部写入，要么都不写，失败不会留下残留文件。</p>
     <div id="mProg" class="mprog" hidden><div></div></div>
     <pre id="mLog" class="mlog"></pre>
   </div>
@@ -810,10 +810,65 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
       var n=doc.numPages; doc.destroy&&doc.destroy(); return n;
     }).catch(function(){ return 0; });
   }
-  function putFile(path, bytes, msg){
-    return api(path,{method:'PUT',body:JSON.stringify({message:msg,content:b64(bytes)})})
-      .then(function(res){
-        if(!res.ok) throw new Error(path+' 上传失败 '+res.status+' '+((res.json&&res.json.message)||'')); return res; });
+  /* ---- Git Data API：一批文件并行建 blob，合成一个 commit，一次更新 main（原子） ---- */
+  var GITURL='https://api.github.com/repos/'+REPO_OWNER+'/'+REPO;
+  function gitApi(method, path, body){
+    return jfetch(GITURL+path, {method:method, headers:hdr(), body: body==null?undefined:JSON.stringify(body)});
+  }
+  function getHead(){
+    return gitApi('GET','/git/ref/heads/main').then(function(res){
+      if(!res.ok || !res.json || !res.json.object) throw new Error('读取 main 失败 '+res.status);
+      var head=res.json.object.sha;
+      return gitApi('GET','/git/commits/'+head).then(function(c){
+        if(!c.ok || !c.json || !c.json.tree) throw new Error('读取提交失败 '+c.status);
+        return {head:head, baseTree:c.json.tree.sha};
+      });
+    });
+  }
+  function createBlob(bytes){
+    return gitApi('POST','/git/blobs',{content:b64(bytes),encoding:'base64'}).then(function(res){
+      if(!res.ok || !res.json || !res.json.sha) throw new Error('建 blob 失败 '+res.status+' '+((res.json&&res.json.message)||''));
+      return res.json.sha;
+    });
+  }
+  function createTree(baseTree, entries){
+    return gitApi('POST','/git/trees',{base_tree:baseTree,tree:entries}).then(function(res){
+      if(!res.ok || !res.json || !res.json.sha) throw new Error('建 tree 失败 '+res.status+' '+((res.json&&res.json.message)||''));
+      return res.json.sha;
+    });
+  }
+  function createCommit(msg, treeSha, head){
+    return gitApi('POST','/git/commits',{message:msg,tree:treeSha,parents:[head]}).then(function(res){
+      if(!res.ok || !res.json || !res.json.sha) throw new Error('建 commit 失败 '+res.status+' '+((res.json&&res.json.message)||''));
+      return res.json.sha;
+    });
+  }
+  function updateRef(commitSha){ return gitApi('PATCH','/git/refs/heads/main',{sha:commitSha,force:false}); }
+
+  /* 纯逻辑：给各组分配编号与路径，生成 user.json 新条目和文件任务；makeDir/today 可注入便于测试。 */
+  function planUpload(groups, current, makeDir, today){
+    var base=9000, i;
+    for(i=0;i<current.length;i++){ var n=Number(current[i].no)||0; if(n>base) base=n; }
+    var entries=[], jobs=[], no=base;
+    for(var g=0;g<groups.length;g++){
+      var grp=groups[g]; no=no+1;
+      var dir='songs-user/'+no+'/'+makeDir(no);
+      var entry={no:no,title:grp.title,singer:grp.singer,added:today};
+      if(grp.isPdf){
+        var ppath=dir+'/source.pdf';
+        entry.pdf=ppath; entry.pdfPages=grp.files[0].pdfPages||1; entry.pages=[];
+        jobs.push({path:ppath,groupIndex:g,fileIndex:0});
+      } else {
+        var pages=[];
+        for(var f=0;f<grp.files.length;f++){
+          var ipath=dir+'/'+(f+1)+'.'+grp.files[f].ext;
+          pages.push(ipath); jobs.push({path:ipath,groupIndex:g,fileIndex:f});
+        }
+        entry.pages=pages;
+      }
+      entries.push(entry);
+    }
+    return {entries:entries,jobs:jobs,merged:current.concat(entries),nextNo:no+1};
   }
 
   /* 只有明确的 404 才允许创建；读取或解析失败不能当空列表写回。 */
@@ -828,17 +883,7 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
       } catch(e){ throw new Error('解析 user.json 失败：'+e.message); }
     });
   }
-  function saveEntry(entry, tries){
-    return latestUsers().then(function(cur){
-      if(cur.data.some(function(u){ return u.no===entry.no; })) throw new Error('编号 '+entry.no+' 已被占用，未写入曲库');
-      var list=cur.data.concat([entry]);
-      return writeJson('site-data/user.json',list,'加谱：'+entry.title+'（未压缩）',cur.sha).then(function(res){
-        if((res.status===409 || res.status===422) && tries>0) return saveEntry(entry,tries-1);
-        if(!res.ok) throw new Error('写 user.json 失败 '+res.status+' '+((res.json&&res.json.message)||''));
-        USER=list; rebuild(); renderDel();
-      });
-    });
-  }
+  /* 旧的逐条 saveEntry 已由 doAdd 的批量原子提交取代。 */
   var adding=false;
   function doAdd(){
     if(adding || !gate()) return;
@@ -851,35 +896,61 @@ function draw(){ var tune=TUNES[curTune]; var ver=curVer||Object.keys(tune.vers)
     if(!pdf && !images) return log('✗ 请分别选择 PDF 或图片，不能混选或上传其他文件');
     var singer=($('#mSinger').value||'').trim() || '本地上传';
     var custom=($('#mTitle').value||'').trim(), groups=pdf?files.map(function(f){return [f];}):[files];
-    var next=9001, btn=$('#mAdd'); adding=true; if(btn) btn.disabled=true;
-    return groups.reduce(function(chain,group,index){ return chain.then(function(){
+    var btn=$('#mAdd'); adding=true; if(btn) btn.disabled=true;
+    var today=new Date().toISOString().slice(0,10);
+    function makeDir(){ var r=new Uint8Array(16); window.crypto.getRandomValues(r);
+      return Array.prototype.map.call(r,function(x){ return ('0'+x.toString(16)).slice(-2); }).join(''); }
+    var prepared=[], groupsMeta=[];
+    /* 1) 本地原样读取字节 + PDF 页数，不转码不压缩 */
+    return groups.reduce(function(chain,group,gi){ return chain.then(function(){
       var title=(pdf && files.length>1 ? '' : custom) || group[0].name.replace(/\.[^.]+$/,'');
-      var no, dir, paths=[], attempted=[];
-      return latestUsers().then(function(cur){
-        no=cur.data.reduce(function(m,u){ return Math.max(m,Number(u.no)||0); },next-1)+1; next=no+1;
-        var random=new Uint8Array(16); window.crypto.getRandomValues(random);
-        dir='songs-user/'+no+'/'+Array.prototype.map.call(random,function(x){ return ('0'+x.toString(16)).slice(-2); }).join('');
-        log('→ 开始：《'+title+'》 编号 '+no+'（原样上传，不压缩）');
-        return group.reduce(function(p,f,i){ return p.then(function(){
-          prog(index,groups.length,'处理 '+title+' '+(i+1)+'/'+group.length);
-          return readBytes(f).then(function(bytes){
-            var path=dir+'/'+(pdf?'source.pdf':(i+1)+'.'+extOf(f.name));
-            return (pdf?pdfPageCount(bytes):Promise.resolve(0)).then(function(n){
-              if(pdf && !n) log('⚠ PDF 页数解析失败，暂按 1 页显示，请检查：'+path);
-              attempted.push(path);
-              return putFile(path,bytes,'加谱 '+title).then(function(){ paths.push(path); return n; });
-            }).then(function(n){ if(pdf) return n; });
-          }).then(function(n){ if(pdf) group.pdfPages=n||1; });
-        }); },Promise.resolve());
-      }).then(function(){
-        var entry={no:no,title:title,singer:singer,added:new Date().toISOString().slice(0,10)};
-        if(pdf){ entry.pdf=paths[0]; entry.pdfPages=group.pdfPages; entry.pages=[]; } else entry.pages=paths;
-        return saveEntry(entry,3);
-      }).then(function(){ log('✓ 已提交：《'+title+'》'); }).catch(function(e){
-        log('✗ 失败：《'+title+'》 '+e.message+(attempted.length?'；尝试上传的文件可能残留，请检查仓库：'+attempted.join('、'):''));
-      });
-    }); },Promise.resolve()).then(function(){ adding=false; if(btn) btn.disabled=false; prog(0,0); },function(e){
-      adding=false; if(btn) btn.disabled=false; prog(0,0); log('✗ 批量上传失败：'+e.message);
+      var meta={title:title,singer:singer,isPdf:pdf,files:[]};
+      return group.reduce(function(p,f,fi){ return p.then(function(){
+        prog(gi,groups.length,'读取 '+title+' '+(fi+1)+'/'+group.length);
+        return readBytes(f).then(function(bytes){
+          return (pdf?pdfPageCount(bytes):Promise.resolve(0)).then(function(n){
+            if(pdf && !n) log('⚠ PDF 页数解析失败，暂按 1 页显示：'+f.name);
+            meta.files.push({name:f.name,ext:extOf(f.name),pdfPages:n||0});
+            prepared.push({groupIndex:gi,fileIndex:fi,bytes:bytes});
+          });
+        });
+      }); },Promise.resolve()).then(function(){ groupsMeta.push(meta); });
+    }); },Promise.resolve()).then(function(){
+      /* 2) 并行建 blob，合成一个 commit，一次更新 main；撞车就重新合并重试 */
+      var fileBlobShas={};
+      function bytesFor(j){ for(var k=0;k<prepared.length;k++){ if(prepared[k].groupIndex===j.groupIndex && prepared[k].fileIndex===j.fileIndex) return prepared[k].bytes; } throw new Error('找不到文件字节'); }
+      function attempt(tries){
+        return Promise.all([getHead(), latestUsers()]).then(function(rs){
+          var head=rs[0], cur=rs[1], plan=planUpload(groupsMeta, cur.data, makeDir, today);
+          log('→ 本次 '+plan.entries.length+' 首、'+plan.jobs.length+' 个文件，合并成一次提交（原样不压缩）');
+          var missing=plan.jobs.filter(function(j){ return !((j.groupIndex+':'+j.fileIndex) in fileBlobShas); });
+          var done=0;
+          return Promise.all(missing.map(function(j){
+            return createBlob(bytesFor(j)).then(function(sha){ fileBlobShas[j.groupIndex+':'+j.fileIndex]=sha; done++; prog(done,plan.jobs.length,'上传文件'); });
+          })).then(function(){
+            prog(plan.jobs.length,plan.jobs.length,'合并提交');
+            return createBlob(enc.encode(JSON.stringify(plan.merged,null,1))).then(function(userSha){
+              var treeEntries=plan.jobs.map(function(j){ return {path:j.path,mode:'100644',type:'blob',sha:fileBlobShas[j.groupIndex+':'+j.fileIndex]}; });
+              treeEntries.push({path:'site-data/user.json',mode:'100644',type:'blob',sha:userSha});
+              return createTree(head.baseTree, treeEntries).then(function(treeSha){
+                var msg=plan.entries.length===1 ? ('加谱：'+plan.entries[0].title+'（未压缩）') : ('加谱：'+plan.entries.length+' 首（'+plan.entries[0].title+' 等，未压缩，批量一次提交）');
+                return createCommit(msg, treeSha, head.head).then(function(commitSha){
+                  return updateRef(commitSha).then(function(res){
+                    if(res.ok){ USER=plan.merged; rebuild(); renderDel();
+                      log('✓ 已一次提交 '+plan.entries.length+' 首（commit '+commitSha.slice(0,8)+'）。Pages 重建后公开页可见。'); return; }
+                    if((res.status===409 || res.status===422) && tries>0){ log('… 远端有更新，重新合并重试（剩 '+tries+' 次）'); return attempt(tries-1); }
+                    throw new Error('更新 main 失败 '+res.status+' '+((res.json&&res.json.message)||'')+'；本次未写入，仓库未改动');
+                  });
+                });
+              });
+            });
+          });
+        });
+      }
+      return attempt(3);
+    }).then(function(){ adding=false; if(btn) btn.disabled=false; prog(0,0); },function(e){
+      adding=false; if(btn) btn.disabled=false; prog(0,0);
+      log('✗ 批量上传失败：'+e.message+'（原子提交：失败时整批都不会写入）');
     });
   }
 
